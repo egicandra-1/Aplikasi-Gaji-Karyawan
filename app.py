@@ -402,7 +402,7 @@ with menu3:
                     st.rerun()
 
 # ==========================================
-# MENU 4: CETAK SLIP GAJI (RAPAT, CENTER PRESISI, SPASI PER HARI)
+# MENU 4: CETAK SLIP GAJI (PERSIS 100% SEPERTI CONTOH REFERENSI)
 # ==========================================
 with menu4:
     st.header("Cetak & Unduh Slip Gaji")
@@ -446,8 +446,8 @@ with menu4:
                     first_day = True
                     for tgl, data_harian in df_filter_gaji.groupby('Tanggal'):
                         if not first_day:
-                            baris_slip.append(("", 9, "left")) # Spasi ekstra ke-2 saat bertemu tanggal hari baru
                             baris_slip.append(("", 9, "left"))
+                            baris_slip.append(("", 9, "left")) # 2 spasi kosong sebelum masuk ke tanggal hari berikutnya
                         first_day = False
                         
                         hari_indo = HARI_INDO.get(tgl.strftime("%A"), "")
@@ -526,7 +526,15 @@ with menu4:
                         if w_txt > max_w:
                             max_w = w_txt
                             
-                    canvas_w = int(max_w) + (16 * scale)
+                    # Lebar kanvas dikunci tetap seragam menggunakan lebar garis pemisah "================================="
+                    try:
+                        f_sep = ImageFont.truetype(font_path, 6 * scale) if font_path else font_test
+                        sep_bbox = dummy_draw.textbbox((0, 0), "=================================", font=f_sep)
+                        sep_w = sep_bbox[2] - sep_bbox[0]
+                    except:
+                        sep_w = max_w
+                        
+                    canvas_w = max(int(max_w), int(sep_w)) + (16 * scale)
                     canvas_h = sum(line_heights) + (4 * scale)
                     
                     img_slip = Image.new('RGB', (canvas_w, canvas_h), color=(255, 255, 255))
