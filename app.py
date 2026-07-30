@@ -40,7 +40,6 @@ st.markdown("""
     </style>
     
     <script>
-    // Memblokir tombol shortcut 'c' atau 'C' agar tidak memunculkan menu Clear Cache Streamlit
     window.addEventListener('keydown', function(e) {
         if (e.key === 'c' || e.key === 'C') {
             e.stopImmediatePropagation();
@@ -650,7 +649,7 @@ with menu5:
         st.download_button("📥 Unduh Resume", data=byte_resume, file_name=f"Resume_{tgl_mulai_res.strftime('%d%m%Y')}.jpg", mime="image/jpeg")
 
 # ==========================================
-# MENU 6: PENGATURAN (TANPA TOMBOL SIMPAN & FORMAT UPAH)
+# MENU 6: PENGATURAN (TANPA TOMBOL SIMPAN & FORMAT UPAH PER PCS)
 # ==========================================
 with menu6:
     st.header("Pengaturan Master Data")
@@ -726,7 +725,7 @@ with menu6:
             use_container_width=True,
             hide_index=True,
             column_config={
-                "Upah": st.column_config.NumberColumn("Upah", format="Rp %,d")
+                "Upah": st.column_config.NumberColumn("Upah (Per Pcs)", format="Rp %,d")
             },
             key="editor_pekerjaan",
             on_change=save_pekerjaan_callback
