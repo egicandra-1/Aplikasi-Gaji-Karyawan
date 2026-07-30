@@ -402,7 +402,7 @@ with menu3:
                     st.rerun()
 
 # ==========================================
-# MENU 4: CETAK SLIP GAJI (FIT KONTEN, TAJAM, TIDAK BLUR & PAS)
+# MENU 4: CETAK SLIP GAJI (FIT KONTEN PERSIS SEPERTI GAMBAR CONTOH)
 # ==========================================
 with menu4:
     st.header("Cetak & Unduh Slip Gaji")
@@ -472,10 +472,10 @@ with menu4:
                     baris_slip.append((f"TOTAL GAJI : Rp {total_bersih:,.0f}".replace(",", "."), 15))
                     baris_slip.append(("==================================", 12))
                     
-                    # Resolusi tinggi 4x dengan margin pas agar tajam dan tidak ada ruang putih sisa berlebih
+                    # Kanvas diset pas tanpa ruang kosong berlebih, dengan skala tinggi 4x agar super tajam saat di-zoom
                     scale = 4
-                    base_w = 340
-                    total_h = sum([sz for _, sz in baris_slip]) + 20
+                    base_w = 320
+                    total_h = sum([sz for _, sz in baris_slip]) + 15
                     
                     img_slip = Image.new('RGB', (base_w * scale, total_h * scale), color=(255, 255, 255))
                     draw_slip = ImageDraw.Draw(img_slip)
@@ -485,13 +485,13 @@ with menu4:
                     except:
                         font_def = None
                         
-                    y_s = 15 * scale
+                    y_s = 10 * scale
                     for txt, sz in baris_slip:
                         try:
                             f_used = ImageFont.truetype("arial.ttf", sz * scale) if font_def else font_def
                         except:
                             f_used = font_def
-                        draw_slip.text((15 * scale, y_s), txt, font=f_used, fill=(0, 0, 0))
+                        draw_slip.text((10 * scale, y_s), txt, font=f_used, fill=(0, 0, 0))
                         y_s += sz * scale
                         
                     buf_s = io.BytesIO()
@@ -499,7 +499,7 @@ with menu4:
                     byte_slip = buf_s.getvalue()
                     
                     st.subheader(f"📄 Slip Gaji: {nama_slip}")
-                    st.image(byte_slip, width=340)
+                    st.image(byte_slip, width=320)
                     st.download_button(f"📥 Unduh Slip - {nama_slip}", data=byte_slip, file_name=f"Slip_{nama_slip}.jpg", mime="image/jpeg", key=f"dl_{nama_slip}")
 
 # ==========================================
