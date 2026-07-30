@@ -14,12 +14,12 @@ HARI_INDO = {
     "Thursday": "Kamis", "Friday": "Jumat", "Saturday": "Sabtu", "Sunday": "Minggu"
 }
 
-URUTAN_HARI = {"Senin": 1, "Selasa": 2, "Rabu": 3, "Kamis": 4, "Jumat": 5, "Sabtu": 6, "Minggu": 7}
+URUTAN_HARI = {"Senin": 1, "Selasa": 2, "Rabu": 3, "Kamis": 4, "Jumat": 5, "Sabtu": 6, "Ninggu": 7}
 
 st.set_page_config(page_title="Sistem Penggajian", layout="wide", page_icon="📝")
 
 # ==========================================
-# SUNTIKAN CSS: MENGHILANGKAN IKON RANTAI & ANIMASI NOTIFIKASI
+# SUNTIKAN CSS: MENGHILANGKAN IKON RANTAI GLOBAL
 # ==========================================
 st.markdown("""
     <style>
@@ -165,7 +165,6 @@ with menu1:
             with col2:
                 jumlah_str = st.text_input("Jumlah (Pcs)", placeholder="Ketik jumlah pcs (contoh: 500)")
                 
-            # Area Notifikasi (Tepat di atas tombol simpan)
             notif_area_1 = st.empty()
             if "notif_1" in st.session_state:
                 if st.session_state.notif_1_type == "success":
@@ -208,11 +207,11 @@ with menu1:
                     st.rerun()
 
 # ==========================================
-# MENU 2: DATABASE & EDIT PEKERJAAN
+# MENU 2: DATABASE & EDIT PEKERJAAN (OTOMATIS TANPA TOMBOL SIMPAN)
 # ==========================================
 with menu2:
     st.header("Database Riwayat Pekerjaan (Per Hari)")
-    st.caption("💡 Edit angka di tabel ini 100% tanpa loading. Jangan lupa klik tombol 'Simpan Perubahan' di bawah tabel setelah selesai edit!")
+    st.caption("💡 Cukup edit angka atau teks langsung di tabel, lalu tekan **Enter**. Data akan otomatis tersimpan seketika!")
     df_gaji = st.session_state.df_gaji
     
     if len(df_gaji) > 0:
@@ -228,41 +227,48 @@ with menu2:
                 with st.expander(f"📅 Hari **{hari}**, Tanggal **{tgl}**", expanded=True):
                     df_harian = df_tampil[(df_tampil['Tanggal'] == tgl) & (df_tampil['Hari'] == hari)].copy()
                     
-                    with st.form(f"form_edit_harian_{tgl}_{hari}"):
-                        df_harian_edit = st.data_editor(
-                            df_harian, 
-                            num_rows="dynamic", 
-                            use_container_width=True, 
-                            column_config={"ID Data": None},
-                            hide_index=True, 
-                            key=f"editor_{tgl}_{hari}"
-                        )
+                    # Kolom yang ditampilkan hanya yang penting agar ringkas
+                    df_harian_view = df_harian[['ID Data', 'Nama', 'Pekerjaan', 'Upah', 'Jumlah', 'Total']].copy()
+                    
+                    notif_key = f"notif_2_{tgl}_{hari}"
+                    notif_area_2 = st.empty()
+                    if notif_key in st.session_state:
+                        notif_area_2.success(st.session_state[notif_key])
+                        del st.session_state[notif_key]
+                    
+                    # Menggunakan callback on_change agar langsung simpan saat Enter ditekan
+                    def save_callback(t=tgl, h=hari, orig_ids=df_harian['ID Data'].tolist()):
+                        edited_df = st.session_state[f"editor_{t}_{h}"]
                         
-                        notif_key = f"notif_2_{tgl}_{hari}"
-                        notif_area_2 = st.empty()
-                        if notif_key in st.session_state:
-                            notif_area_2.success(st.session_state[notif_key])
-                            del st.session_state[notif_key]
+                        # Perbaiki format data angka
+                        edited_df['Upah'] = edited_df['Upah'].astype(str).str.replace("Rp", "").str.replace(".", "").str.strip()
+                        edited_df['Upah'] = pd.to_numeric(edited_df['Upah'], errors='coerce').fillna(0)
+                        edited_df['Jumlah'] = pd.to_numeric(edited_df['Jumlah'], errors='coerce').fillna(0)
+                        edited_df['Total'] = edited_df['Jumlah'] * edited_df['Upah']
+                        edited_df['Hari'] = h
+                        edited_df['Tanggal'] = t
                         
-                        if st.form_submit_button(f"💾 Simpan Perubahan Tanggal {tgl}", type="primary"):
-                            df_harian_edit['Upah'] = df_harian_edit['Upah'].astype(str).str.replace("Rp", "").str.replace(".", "").str.strip()
-                            df_harian_edit['Upah'] = pd.to_numeric(df_harian_edit['Upah'], errors='coerce').fillna(0)
-                            df_harian_edit['Jumlah'] = pd.to_numeric(df_harian_edit['Jumlah'], errors='coerce').fillna(0)
-                            df_harian_edit['Total'] = df_harian_edit['Jumlah'] * df_harian_edit['Upah']
-                            
-                            for idx, row in df_harian_edit.iterrows():
-                                if pd.isna(row["ID Data"]) or str(row["ID Data"]).strip() == "":
-                                    df_harian_edit.at[idx, "ID Data"] = f"ID-{int(time.time())}-{idx}"
-                            
-                            df_sisa = st.session_state.df_gaji[~st.session_state.df_gaji['ID Data'].isin(df_harian['ID Data'])]
-                            df_final = pd.concat([df_sisa, df_harian_edit]).sort_values(by="Tanggal").reset_index(drop=True)
-                            
-                            st.session_state.df_gaji = df_final
-                            ws["gaji"].clear()
-                            ws["gaji"].update([df_final.columns.values.tolist()] + df_final.fillna("").values.tolist())
-                            
-                            st.session_state[notif_key] = "✅ Perubahan Berhasil Disimpan!"
-                            st.rerun()
+                        for idx, row in edited_df.iterrows():
+                            if pd.isna(row["ID Data"]) or str(row["ID Data"]).strip() == "":
+                                edited_df.at[idx, "ID Data"] = f"ID-{int(time.time())}-{idx}"
+                        
+                        df_sisa = st.session_state.df_gaji[~st.session_state.df_gaji['ID Data'].isin(orig_ids)]
+                        df_final = pd.concat([df_sisa, edited_df]).sort_values(by="Tanggal").reset_index(drop=True)
+                        
+                        st.session_state.df_gaji = df_final
+                        ws["gaji"].clear()
+                        ws["gaji"].update([df_final.columns.values.tolist()] + df_final.fillna("").values.tolist())
+                        st.session_state[f"notif_2_{t}_{h}"] = "✅ Otomatis Tersimpan!"
+
+                    st.data_editor(
+                        df_harian_view, 
+                        num_rows="dynamic", 
+                        use_container_width=True, 
+                        column_config={"ID Data": None}, 
+                        hide_index=True, 
+                        key=f"editor_{tgl}_{hari}",
+                        on_change=save_callback
+                    )
         else:
             st.info(f"Tidak ada riwayat pekerjaan untuk {filter_nama}.")
     else:
@@ -560,7 +566,7 @@ with menu5:
         st.download_button("📥 Unduh Resume", data=byte_resume, file_name=f"Resume_{tgl_mulai_res.strftime('%d%m%Y')}.jpg", mime="image/jpeg")
 
 # ==========================================
-# MENU 6: PENGATURAN (SISTEM TABEL INSTAN ANTI-LOADING)
+# MENU 6: PENGATURAN
 # ==========================================
 with menu6:
     st.header("Pengaturan Master Data")
