@@ -19,18 +19,13 @@ URUTAN_HARI = {"Senin": 1, "Selasa": 2, "Rabu": 3, "Kamis": 4, "Jumat": 5, "Sabt
 st.set_page_config(page_title="Sistem Penggajian", layout="wide", page_icon="📝")
 
 # ==========================================
-# SUNTIKAN CSS: MENGHILANGKAN IKON RANTAI GLOBAL
+# SUNTIKAN CSS & JAVASCRIPT: MATIKAN TOTAL SHORTCUT 'C'
 # ==========================================
 st.markdown("""
     <style>
     /* Menyembunyikan ikon rantai di semua judul */
     h1 a, h2 a, h3 a, h4 a, h5 a, h6 a {
         display: none !important;
-    }
-    
-    /* Mencegah shortcut tombol 'C' memunculkan dialog clear cache */
-    body {
-        -webkit-user-select: none;
     }
     
     /* Animasi memudar otomatis untuk notifikasi */
@@ -45,11 +40,10 @@ st.markdown("""
     </style>
     
     <script>
-    document.addEventListener('keydown', function(e) {
+    // Memblokir tombol shortcut 'c' atau 'C' agar tidak memunculkan menu Clear Cache Streamlit
+    window.addEventListener('keydown', function(e) {
         if (e.key === 'c' || e.key === 'C') {
-            if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName) || document.activeElement.getAttribute('contenteditable') === 'true') {
-                e.stopPropagation();
-            }
+            e.stopImmediatePropagation();
         }
     }, true);
     </script>
@@ -139,7 +133,6 @@ if "data_loaded" not in st.session_state:
 daftar_karyawan = st.session_state.df_karyawan["Nama Karyawan"].dropna().tolist() if not st.session_state.df_karyawan.empty else []
 daftar_pekerjaan = st.session_state.df_pekerjaan["Jenis Pekerjaan"].dropna().tolist() if not st.session_state.df_pekerjaan.empty else []
 
-# Memastikan pembacaan kolom upah aman dari error
 df_pek_temp = st.session_state.df_pekerjaan
 col_upah_key = "Upah" if "Upah" in df_pek_temp.columns else (df_pek_temp.columns[1] if len(df_pek_temp.columns) > 1 else "Upah")
 tarif_pekerjaan = dict(zip(df_pek_temp["Jenis Pekerjaan"], pd.to_numeric(df_pek_temp[col_upah_key], errors='coerce').fillna(0))) if not df_pek_temp.empty else {}
