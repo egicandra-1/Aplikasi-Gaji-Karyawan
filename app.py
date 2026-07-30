@@ -121,7 +121,7 @@ menu1, menu2, menu3, menu4, menu5, menu6 = st.tabs([
 ])
 
 # ==========================================
-# MENU 1: INPUT HARIAN
+# MENU 1: INPUT HARIAN (MENGGUNAKAN FORM AMAN)
 # ==========================================
 with menu1:
     st.header("Input Pekerjaan Harian")
@@ -142,19 +142,19 @@ with menu1:
 
             st.markdown("---")
             st.markdown("### ⚡ Panel Input Harian")
-            st.caption("Pilih pekerjaan, ketik jumlahnya, lalu **tekan Enter** pada keyboard atau klik tombol Simpan.")
+            st.caption("Ketik jumlah pcs dengan tenang, lalu klik tombol Simpan di bawah.")
             
             col1, col2 = st.columns([2, 1])
             with col1:
                 opsi_kerja = ["-"] + daftar_pekerjaan
                 pekerjaan = st.selectbox("Pilih Pekerjaan", opsi_kerja)
             with col2:
-                jumlah = st.number_input("Jumlah (Pcs)", min_value=0, step=1, value=None, placeholder="Ketik jumlah pcs...")
+                jumlah = st.number_input("Jumlah (Pcs)", min_value=0, step=1, value=0, placeholder="Ketik jumlah pcs...")
                 
             submitted_input = st.form_submit_button("💾 Simpan Data Pekerjaan", type="primary", use_container_width=True)
             
             if submitted_input:
-                if pekerjaan != "-" and jumlah is not None and jumlah > 0:
+                if pekerjaan != "-" and jumlah > 0:
                     upah = tarif_pekerjaan[pekerjaan]
                     total = jumlah * upah
                     
@@ -169,10 +169,10 @@ with menu1:
                         st.success(f"✅ Berhasil menyimpan! {jml_fmt} {pekerjaan} untuk {nama}.")
                     except Exception as e:
                         st.error(f"⚠️ Gagal menyimpan ke server: {e}")
-                elif (jumlah is not None and jumlah > 0) and pekerjaan == "-":
+                elif pekerjaan == "-":
                     st.error("⚠️ Gagal simpan! Anda belum memilih Jenis Pekerjaan.")
                 else:
-                    st.error("⚠️ Gagal simpan! Mohon pilih pekerjaan dan isi jumlah dengan benar.")
+                    st.error("⚠️ Gagal simpan! Jumlah pcs harus lebih dari 0.")
 
 # ==========================================
 # MENU 2: DATABASE & EDIT PEKERJAAN
@@ -235,11 +235,11 @@ with menu3:
             with col_kb4:
                 ket_kb = st.text_input("Keterangan (Contoh: Lembur / Kasbon beras)")
             with col_kb5:
-                nominal_kb = st.number_input("Nominal (Rp)", min_value=0, step=5000, value=None, placeholder="Ketik nominal...")
+                nominal_kb = st.number_input("Nominal (Rp)", min_value=0, step=5000, value=0, placeholder="Ketik nominal...")
                 
             submitted_kb = st.form_submit_button("💾 Simpan Data", type="primary", use_container_width=True)
             if submitted_kb:
-                if nominal_kb is not None and nominal_kb > 0 and ket_kb.strip() != "":
+                if nominal_kb > 0 and ket_kb.strip() != "":
                     try:
                         worksheet = spreadsheet.worksheet(SHEET_KASBON)
                         id_kb = f"KB-{int(time.time())}"
@@ -425,7 +425,7 @@ with menu5:
     with col_r2:
         tgl_selesai_res = st.date_input("Sampai Tanggal", datetime.today(), format="DD/MM/YYYY", key="res_selesai")
         
-    tarik_uang = st.number_input("💵 Total Penarikan Uang Cash (Rp)", min_value=0, step=100000, value=None, placeholder="Ketik nominal tarikan uang...")
+    tarik_uang = st.number_input("💵 Total Penarikan Uang Cash (Rp)", min_value=0, step=100000, value=0, placeholder="Ketik nominal tarikan uang...")
     
     st.markdown("---")
     st.subheader("🛒 Pencatatan Pengeluaran Lain-Lain")
@@ -435,11 +435,11 @@ with menu5:
         with col_l1:
             ket_lain = st.text_input("Keterangan Pengeluaran")
         with col_l2:
-            nominal_lain = st.number_input("Nominal (Rp)", min_value=0, step=5000, value=None, placeholder="Ketik nominal...")
+            nominal_lain = st.number_input("Nominal (Rp)", min_value=0, step=5000, value=0, placeholder="Ketik nominal...")
             
         submitted_lain = st.form_submit_button("➕ Tambah Pengeluaran Lain", type="primary", use_container_width=True)
         if submitted_lain:
-            if nominal_lain is not None and nominal_lain > 0 and ket_lain.strip() != "":
+            if nominal_lain > 0 and ket_lain.strip() != "":
                 try:
                     worksheet = spreadsheet.worksheet(SHEET_PENGELUARAN)
                     id_lain = f"LAIN-{int(time.time())}"
@@ -453,9 +453,6 @@ with menu5:
                 st.warning("⚠️ Mohon isi keterangan dan nominal pengeluaran dengan benar.")
 
     if st.button("🖼️ Generate Gambar Resume", type="primary"):
-        if tarik_uang is None:
-            tarik_uang = 0
-            
         df_gaji['Tanggal'] = pd.to_datetime(df_gaji['Tanggal']).dt.date
         df_f_gaji = df_gaji[(df_gaji['Tanggal'] >= tgl_mulai_res) & (df_gaji['Tanggal'] <= tgl_selesai_res)]
         
@@ -608,28 +605,69 @@ with menu5:
         )
 
 # ==========================================
-# MENU 6: PENGATURAN KARYAWAN & PEKERJAAN (MENGGUNAKAN TABEL INTERAKTIF SEPERTI SEMULA)
+# MENU 6: PENGATURAN KARYAWAN & PEKERJAAN (MENGGUNAKAN FORM AMAN)
 # ==========================================
 with menu6:
     st.header("Pengaturan Master Data")
-    st.caption("💡 Tips: Tambahkan nama/pekerjaan di baris kosong bawah, edit langsung di tabel, atau pilih baris lalu tekan 'Delete' di keyboard / ikon hapus untuk menghapus.")
+    st.caption("💡 Tambahkan Karyawan atau Pekerjaan baru dengan aman menggunakan form di bawah ini.")
     
     col_karyawan, col_pekerjaan = st.columns(2)
     
     with col_karyawan:
         st.subheader("👥 Daftar Nama Karyawan")
-        df_karyawan_edit = st.data_editor(df_karyawan, num_rows="dynamic", use_container_width=True, key="edit_tabel_karyawan")
         
-        if not df_karyawan.equals(df_karyawan_edit):
-            save_data_to_sheet(SHEET_KARYAWAN, df_karyawan_edit)
-            st.toast("Daftar Karyawan diperbarui otomatis! 💾", icon="✅")
-            st.rerun()
+        with st.form("form_tambah_karyawan", clear_on_submit=True):
+            nama_baru = st.text_input("Nama Karyawan Baru", placeholder="Ketik nama...")
+            btn_tambah_karyawan = st.form_submit_button("➕ Tambah Karyawan", type="primary", use_container_width=True)
+            if btn_tambah_karyawan:
+                if nama_baru.strip() != "":
+                    if nama_baru not in daftar_karyawan:
+                        try:
+                            worksheet = spreadsheet.worksheet(SHEET_KARYAWAN)
+                            worksheet.append_row([nama_baru.strip()])
+                            load_data_from_sheet.clear()
+                            st.success(f"Berhasil menambahkan {nama_baru}!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Gagal simpan ke server: {e}")
+                    else:
+                        st.warning("Nama karyawan sudah ada!")
+                else:
+                    st.warning("Mohon isi nama karyawan.")
+        
+        st.write("Daftar Karyawan Saat Ini:")
+        if not df_karyawan.empty:
+            for idx, row in df_karyawan.iterrows():
+                st.text(f"• {row['Nama Karyawan']}")
+        else:
+            st.info("Belum ada data karyawan.")
 
     with col_pekerjaan:
         st.subheader("🛠️ Daftar & Harga Pekerjaan")
-        df_pekerjaan_edit = st.data_editor(df_pekerjaan, num_rows="dynamic", use_container_width=True, key="edit_tabel_pekerjaan")
         
-        if not df_pekerjaan.equals(df_pekerjaan_edit):
-            save_data_to_sheet(SHEET_PEKERJAAN, df_pekerjaan_edit)
-            st.toast("Daftar Pekerjaan diperbarui otomatis! 💾", icon="✅")
-            st.rerun()
+        with st.form("form_tambah_pekerjaan", clear_on_submit=True):
+            pek_baru = st.text_input("Jenis Pekerjaan Baru", placeholder="Ketik jenis pekerjaan...")
+            harga_baru = st.number_input("Harga Per Pcs (Rp)", min_value=0, step=50, value=0)
+            btn_tambah_pek = st.form_submit_button("➕ Tambah Pekerjaan", type="primary", use_container_width=True)
+            if btn_tambah_pek:
+                if pek_baru.strip() != "":
+                    if pek_baru not in daftar_pekerjaan:
+                        try:
+                            worksheet = spreadsheet.worksheet(SHEET_PEKERJAAN)
+                            worksheet.append_row([pek_baru.strip(), harga_baru])
+                            load_data_from_sheet.clear()
+                            st.success(f"Berhasil menambahkan {pek_baru}!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Gagal simpan ke server: {e}")
+                    else:
+                        st.warning("Jenis pekerjaan sudah ada!")
+                else:
+                    st.warning("Mohon isi nama pekerjaan.")
+
+        st.write("Daftar Pekerjaan & Harga Saat Ini:")
+        if not df_pekerjaan.empty:
+            for idx, row in df_pekerjaan.iterrows():
+                st.text(f"• {row['Jenis Pekerjaan']} (Rp {row['Harga Per Pcs']:,.0f})".replace(",", "."))
+        else:
+            st.info("Belum ada data pekerjaan.")
