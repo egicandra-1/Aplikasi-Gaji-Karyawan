@@ -277,12 +277,12 @@ with menu2:
                         del st.session_state[notif_key]
                     
                     def save_callback(t=tgl, h=hari, orig_ids=df_harian['ID Data'].tolist()):
-                        edited_df = st.session_state[f"editor_{t}_{h}"]
+                        edited_df = st.session_state.get(f"editor_{t}_{h}")
                         
-                        if edited_df.empty:
+                        # Pengaman absolut jika objek kosong atau bukan DataFrame
+                        if edited_df is None or not isinstance(edited_df, pd.DataFrame) or edited_df.empty:
                             df_processed = pd.DataFrame(columns=['ID Data', 'Hari', 'Tanggal', 'Nama', 'Pekerjaan', 'Upah', 'Jumlah', 'Total'])
                         else:
-                            # Mengambil data dengan pengaman pengecekan kolom
                             col_id = edited_df.columns[0] if len(edited_df.columns) > 0 else None
                             col_nama = edited_df.columns[1] if len(edited_df.columns) > 1 else None
                             col_pek = edited_df.columns[2] if len(edited_df.columns) > 2 else None
