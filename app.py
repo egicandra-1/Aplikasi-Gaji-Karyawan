@@ -649,7 +649,7 @@ with menu5:
         st.download_button("📥 Unduh Resume", data=byte_resume, file_name=f"Resume_{tgl_mulai_res.strftime('%d%m%Y')}.jpg", mime="image/jpeg")
 
 # ==========================================
-# MENU 6: PENGATURAN (TANPA TOMBOL SIMPAN & FORMAT UPAH PER PCS)
+# MENU 6: PENGATURAN (OTOMATIS SIMPAN & NOTIFIKASI DEKAT TABEL)
 # ==========================================
 with menu6:
     st.header("Pengaturan Master Data")
