@@ -402,7 +402,7 @@ with menu3:
                     st.rerun()
 
 # ==========================================
-# MENU 4: CETAK SLIP GAJI (FORMAT STRUK BESAR & SANGAT TAJAM)
+# MENU 4: CETAK SLIP GAJI (STRUK TEKS BESAR & PAS)
 # ==========================================
 with menu4:
     st.header("Cetak & Unduh Slip Gaji")
@@ -435,49 +435,48 @@ with menu4:
                 
                 if len(df_filter_gaji) > 0 or len(df_filter_kb) > 0:
                     baris_slip = [
-                        ("SLIP GAJI KARYAWAN", 36),
-                        ("==================================================", 22),
-                        (f"Nama    : {nama_slip}", 26),
-                        (f"Periode : {tgl_mulai_slip.strftime('%d/%m/%Y')} s/d {tgl_selesai_slip.strftime('%d/%m/%Y')}", 26),
-                        ("==================================================", 22),
-                        ("", 15)
+                        ("SLIP GAJI KARYAWAN", 22),
+                        ("========================================", 14),
+                        (f"Nama    : {nama_slip}", 16),
+                        (f"Periode : {tgl_mulai_slip.strftime('%d/%m/%Y')} s/d {tgl_selesai_slip.strftime('%d/%m/%Y')}", 16),
+                        ("========================================", 14),
+                        ("", 8)
                     ]
                     
                     total_upah = 0
                     for tgl, data_harian in df_filter_gaji.groupby('Tanggal'):
-                        baris_slip.append((f"Tgl: {tgl.strftime('%d/%m/%Y')}", 24))
+                        baris_slip.append((f"Tgl: {tgl.strftime('%d/%m/%Y')}", 15))
                         sub = 0
                         for _, row in data_harian.iterrows():
                             j, u, t = float(row['Jumlah']), float(row['Upah']), float(row['Total'])
-                            baris_slip.append((f" - {row['Pekerjaan']}", 24))
-                            baris_slip.append((f"   {j:,.0f} pcs x Rp{u:,.0f} = Rp{t:,.0f}".replace(",", "."), 24))
+                            baris_slip.append((f" - {row['Pekerjaan']}", 15))
+                            baris_slip.append((f"   {j:,.0f} pcs x Rp{u:,.0f} = Rp{t:,.0f}".replace(",", "."), 15))
                             sub += t
-                        baris_slip.append((f"Sub-total: Rp{sub:,.0f}".replace(",", "."), 24))
-                        baris_slip.append(("", 12))
+                        baris_slip.append((f"Sub-total: Rp{sub:,.0f}".replace(",", "."), 15))
+                        baris_slip.append(("", 6))
                         total_upah += sub
                         
                     tot_tambah, tot_kurang = 0, 0
                     if len(df_filter_kb) > 0:
-                        baris_slip.append(("--- CATATAN TAMBAHAN ---", 24))
+                        baris_slip.append(("--- CATATAN TAMBAHAN ---", 15))
                         for _, rkb in df_filter_kb.iterrows():
                             nom = float(rkb['Nominal'])
                             sign = "+" if rkb['Tipe'] == "Penambahan" else "-"
-                            baris_slip.append((f" {sign} {rkb['Keterangan']} (Rp {nom:,.0f})".replace(",", "."), 24))
+                            baris_slip.append((f" {sign} {rkb['Keterangan']} (Rp {nom:,.0f})".replace(",", "."), 15))
                             if rkb['Tipe'] == "Penambahan": tot_tambah += nom
                             else: tot_kurang += nom
-                        baris_slip.append(("", 12))
+                        baris_slip.append(("", 6))
                         
                     total_bersih = total_upah + tot_tambah - tot_kurang
-                    baris_slip.append(("==================================================", 22))
-                    baris_slip.append((f"TOTAL GAJI : Rp {total_bersih:,.0f}".replace(",", "."), 32))
-                    baris_slip.append(("==================================================", 22))
+                    baris_slip.append(("========================================", 14))
+                    baris_slip.append((f"TOTAL GAJI : Rp {total_bersih:,.0f}".replace(",", "."), 20))
+                    baris_slip.append(("========================================", 14))
                     
-                    # Render HD Tinggi & Resolusi Sangat Besar Agar Tajam Saat Di-Zoom
-                    scale = 4
-                    base_w = 560
-                    total_h = sum([sz for _, sz in baris_slip]) + 80
+                    # Render HD Standard Tanpa Skala Berlebih Agar Ukuran Huruf Pas & Tidak Kecil
+                    width_px = 540
+                    total_h = sum([sz * 2 for _, sz in baris_slip]) + 60
                     
-                    img_slip = Image.new('RGB', (base_w * scale, total_h * scale), color=(255, 255, 255))
+                    img_slip = Image.new('RGB', (width_px, total_h), color=(255, 255, 255))
                     draw_slip = ImageDraw.Draw(img_slip)
                     
                     try:
@@ -485,25 +484,25 @@ with menu4:
                     except:
                         font_def = None
                         
-                    y_s = 40 * scale
+                    y_s = 30
                     for txt, sz in baris_slip:
                         try:
-                            f_used = ImageFont.truetype("arial.ttf", sz * scale) if font_def else font_def
+                            f_used = ImageFont.truetype("arial.ttf", sz) if font_def else font_def
                         except:
                             f_used = font_def
-                        draw_slip.text((35 * scale, y_s), txt, font=f_used, fill=(0, 0, 0))
-                        y_s += sz * scale
+                        draw_slip.text((25, y_s), txt, font=f_used, fill=(0, 0, 0))
+                        y_s += sz * 2
                         
                     buf_s = io.BytesIO()
                     img_slip.save(buf_s, format="JPEG", quality=95)
                     byte_slip = buf_s.getvalue()
                     
                     st.subheader(f"📄 Slip Gaji: {nama_slip}")
-                    st.image(byte_slip, width=500)
+                    st.image(byte_slip, width=450)
                     st.download_button(f"📥 Unduh Slip - {nama_slip}", data=byte_slip, file_name=f"Slip_{nama_slip}.jpg", mime="image/jpeg", key=f"dl_{nama_slip}")
 
 # ==========================================
-# MENU 5: LAPORAN RESUME KAS (HD TINGGI & TAJAM)
+# MENU 5: LAPORAN RESUME KAS
 # ==========================================
 with menu5:
     st.header("📊 Laporan Resume Kas")
@@ -609,73 +608,72 @@ with menu5:
         total_pengeluaran_keseluruhan = total_gaji_semua + total_pengeluaran_lain
         sisa_uang = tarik_uang - total_pengeluaran_keseluruhan
         
-        # Render Tabel Resume dengan Skala HD 4x Agar Super Tajam Saat Di-Zoom
-        scale = 4
+        scale = 2
         img_w = 800
-        img_h = 240 + (len(daftar_karyawan) * 45) + 140 + (max(len(df_lain_all), 1) * 45) + 200
+        img_h = 240 + (len(daftar_karyawan) * 35) + 120 + (max(len(df_lain_all), 1) * 35) + 160
         
         img_res = Image.new('RGB', (img_w * scale, img_h * scale), color=(255, 255, 255))
         draw_res = ImageDraw.Draw(img_res)
         
         try:
-            font_title = ImageFont.truetype("arial.ttf", 26 * scale)
-            font_bold = ImageFont.truetype("arial.ttf", 16 * scale)
-            font_regular = ImageFont.truetype("arial.ttf", 15 * scale)
+            font_title = ImageFont.truetype("arial.ttf", 22 * scale)
+            font_bold = ImageFont.truetype("arial.ttf", 14 * scale)
+            font_regular = ImageFont.truetype("arial.ttf", 13 * scale)
         except:
             font_title = font_bold = font_regular = ImageFont.load_default()
             
         draw_res.text((40 * scale, 30 * scale), "LAPORAN RESUME KAS & GAJI", fill=(0, 0, 0), font=font_title)
-        draw_res.text((40 * scale, 70 * scale), f"Periode: {tgl_mulai_res.strftime('%d/%m/%Y')} s/d {tgl_selesai_res.strftime('%d/%m/%Y')}", fill=(80, 80, 80), font=font_regular)
-        draw_res.line([(40 * scale, 105 * scale), (760 * scale, 105 * scale)], fill=(0, 0, 0), width=3 * scale)
+        draw_res.text((40 * scale, 65 * scale), f"Periode: {tgl_mulai_res.strftime('%d/%m/%Y')} s/d {tgl_selesai_res.strftime('%d/%m/%Y')}", fill=(80, 80, 80), font=font_regular)
+        draw_res.line([(40 * scale, 95 * scale), (760 * scale, 95 * scale)], fill=(0, 0, 0), width=3 * scale)
         
-        y = 135 * scale
+        y = 120 * scale
         draw_res.text((40 * scale, y), "A.  RINCIAN GAJI KARYAWAN", fill=(0, 0, 0), font=font_bold)
-        y += 35 * scale
+        y += 25 * scale
         
-        draw_res.rectangle([40 * scale, y, 760 * scale, y + 40 * scale], fill=(230, 230, 230), outline=(0, 0, 0), width=1 * scale)
-        draw_res.text((50 * scale, y + 10 * scale), "NAMA KARYAWAN", fill=(0, 0, 0), font=font_bold)
-        draw_res.text((550 * scale, y + 10 * scale), "JUMLAH (Rp)", fill=(0, 0, 0), font=font_bold)
-        y += 40 * scale
+        draw_res.rectangle([40 * scale, y, 760 * scale, y + 30 * scale], fill=(230, 230, 230), outline=(0, 0, 0), width=1 * scale)
+        draw_res.text((50 * scale, y + 6 * scale), "NAMA KARYAWAN", fill=(0, 0, 0), font=font_bold)
+        draw_res.text((550 * scale, y + 6 * scale), "JUMLAH (Rp)", fill=(0, 0, 0), font=font_bold)
+        y += 30 * scale
         
         for k in daftar_karyawan:
             val = rekap_gaji.get(k, 0)
-            draw_res.rectangle([40 * scale, y, 760 * scale, y + 40 * scale], outline=(200, 200, 200), width=1 * scale)
-            draw_res.text((50 * scale, y + 10 * scale), k, fill=(30, 30, 30), font=font_regular)
-            draw_res.text((550 * scale, y + 10 * scale), f"{val:,.0f}".replace(",", "."), fill=(30, 30, 30), font=font_regular)
-            y += 40 * scale
+            draw_res.rectangle([40 * scale, y, 760 * scale, y + 30 * scale], outline=(200, 200, 200), width=1 * scale)
+            draw_res.text((50 * scale, y + 6 * scale), k, fill=(30, 30, 30), font=font_regular)
+            draw_res.text((550 * scale, y + 6 * scale), f"{val:,.0f}".replace(",", "."), fill=(30, 30, 30), font=font_regular)
+            y += 30 * scale
             
-        draw_res.rectangle([40 * scale, y, 760 * scale, y + 40 * scale], fill=(240, 240, 240), outline=(0, 0, 0), width=1 * scale)
-        draw_res.text((50 * scale, y + 10 * scale), "TOTAL GAJI KARYAWAN", fill=(0, 0, 0), font=font_bold)
-        draw_res.text((550 * scale, y + 10 * scale), f"{total_gaji_semua:,.0f}".replace(",", "."), fill=(0, 0, 0), font=font_bold)
-        y += 65 * scale
+        draw_res.rectangle([40 * scale, y, 760 * scale, y + 30 * scale], fill=(240, 240, 240), outline=(0, 0, 0), width=1 * scale)
+        draw_res.text((50 * scale, y + 6 * scale), "TOTAL GAJI KARYAWAN", fill=(0, 0, 0), font=font_bold)
+        draw_res.text((550 * scale, y + 6 * scale), f"{total_gaji_semua:,.0f}".replace(",", "."), fill=(0, 0, 0), font=font_bold)
+        y += 50 * scale
         
         draw_res.text((40 * scale, y), "B.  PENGELUARAN LAIN-LAIN", fill=(0, 0, 0), font=font_bold)
-        y += 35 * scale
+        y += 25 * scale
         
-        draw_res.rectangle([40 * scale, y, 760 * scale, y + 40 * scale], fill=(230, 230, 230), outline=(0, 0, 0), width=1 * scale)
-        draw_res.text((50 * scale, y + 10 * scale), "KETERANGAN", fill=(0, 0, 0), font=font_bold)
-        draw_res.text((550 * scale, y + 10 * scale), "JUMLAH (Rp)", fill=(0, 0, 0), font=font_bold)
-        y += 40 * scale
+        draw_res.rectangle([40 * scale, y, 760 * scale, y + 30 * scale], fill=(230, 230, 230), outline=(0, 0, 0), width=1 * scale)
+        draw_res.text((50 * scale, y + 6 * scale), "KETERANGAN", fill=(0, 0, 0), font=font_bold)
+        draw_res.text((550 * scale, y + 6 * scale), "JUMLAH (Rp)", fill=(0, 0, 0), font=font_bold)
+        y += 30 * scale
         
         if len(df_lain_all) > 0:
             for _, r in df_lain_all.iterrows():
-                draw_res.rectangle([40 * scale, y, 760 * scale, y + 40 * scale], outline=(200, 200, 200), width=1 * scale)
-                draw_res.text((50 * scale, y + 10 * scale), str(r['Keterangan']), fill=(30, 30, 30), font=font_regular)
-                draw_res.text((550 * scale, y + 10 * scale), f"{float(r['Nominal']):,.0f}".replace(",", "."), fill=(30, 30, 30), font=font_regular)
-                y += 40 * scale
+                draw_res.rectangle([40 * scale, y, 760 * scale, y + 30 * scale], outline=(200, 200, 200), width=1 * scale)
+                draw_res.text((50 * scale, y + 6 * scale), str(r['Keterangan']), fill=(30, 30, 30), font=font_regular)
+                draw_res.text((550 * scale, y + 6 * scale), f"{float(r['Nominal']):,.0f}".replace(",", "."), fill=(30, 30, 30), font=font_regular)
+                y += 30 * scale
         else:
-            draw_res.rectangle([40 * scale, y, 760 * scale, y + 40 * scale], outline=(200, 200, 200), width=1 * scale)
-            draw_res.text((50 * scale, y + 10 * scale), "(Tidak ada pengeluaran lain)", fill=(120, 120, 120), font=font_regular)
-            draw_res.text((550 * scale, y + 10 * scale), "0", fill=(120, 120, 120), font=font_regular)
-            y += 40 * scale
+            draw_res.rectangle([40 * scale, y, 760 * scale, y + 30 * scale], outline=(200, 200, 200), width=1 * scale)
+            draw_res.text((50 * scale, y + 6 * scale), "(Tidak ada pengeluaran lain)", fill=(120, 120, 120), font=font_regular)
+            draw_res.text((550 * scale, y + 6 * scale), "0", fill=(120, 120, 120), font=font_regular)
+            y += 30 * scale
             
-        draw_res.rectangle([40 * scale, y, 760 * scale, y + 40 * scale], fill=(240, 240, 240), outline=(0, 0, 0), width=1 * scale)
-        draw_res.text((50 * scale, y + 10 * scale), "TOTAL PENGELUARAN LAIN", fill=(0, 0, 0), font=font_bold)
-        draw_res.text((550 * scale, y + 10 * scale), f"{total_pengeluaran_lain:,.0f}".replace(",", "."), fill=(0, 0, 0), font=font_bold)
-        y += 65 * scale
+        draw_res.rectangle([40 * scale, y, 760 * scale, y + 30 * scale], fill=(240, 240, 240), outline=(0, 0, 0), width=1 * scale)
+        draw_res.text((50 * scale, y + 6 * scale), "TOTAL PENGELUARAN LAIN", fill=(0, 0, 0), font=font_bold)
+        draw_res.text((550 * scale, y + 6 * scale), f"{total_pengeluaran_lain:,.0f}".replace(",", "."), fill=(0, 0, 0), font=font_bold)
+        y += 50 * scale
         
         draw_res.text((40 * scale, y), "C.  RINGKASAN KAS", fill=(0, 0, 0), font=font_bold)
-        y += 35 * scale
+        y += 25 * scale
         
         ringkasan_data = [
             ("Total Penarikan Uang Cash", f"Rp {tarik_uang:,.0f}".replace(",", ".")),
@@ -685,10 +683,10 @@ with menu5:
         
         for idx, (label, val) in enumerate(ringkasan_data):
             bg_col = (210, 230, 250) if idx == 2 else (255, 255, 255)
-            draw_res.rectangle([40 * scale, y, 760 * scale, y + 45 * scale], fill=bg_col, outline=(0, 0, 0), width=1 * scale)
-            draw_res.text((50 * scale, y + 12 * scale), label, fill=(0, 0, 0), font=font_bold)
-            draw_res.text((550 * scale, y + 12 * scale), val, fill=(0, 0, 0), font=font_bold)
-            y += 45 * scale
+            draw_res.rectangle([40 * scale, y, 760 * scale, y + 35 * scale], fill=bg_col, outline=(0, 0, 0), width=1 * scale)
+            draw_res.text((50 * scale, y + 8 * scale), label, fill=(0, 0, 0), font=font_bold)
+            draw_res.text((550 * scale, y + 8 * scale), val, fill=(0, 0, 0), font=font_bold)
+            y += 35 * scale
             
         buf_res = io.BytesIO()
         img_res.save(buf_res, format="JPEG", quality=95)
