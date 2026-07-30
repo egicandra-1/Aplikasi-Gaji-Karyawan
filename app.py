@@ -237,7 +237,6 @@ with menu2:
         
         col_f1, col_f2 = st.columns([2, 1])
         with col_f1:
-            # Tanpa min_value agar bisa leluasa memilih tanggal kapan saja ke belakang
             rentang_tanggal = st.date_input(
                 "Pilih Periode Tanggal",
                 value=(default_start, max_tgl),
@@ -498,7 +497,15 @@ with menu5:
     else:
         tgl_mulai_res = tgl_selesai_res = rentang_res[0] if isinstance(rentang_res, tuple) else rentang_res
     
-    tarik_uang_str = st.text_input("💵 Total Penarikan Uang Cash (Rp)", placeholder="Ketik nominal...")
+    # Input Penarikan Kas dengan Notifikasi Interaktif Profesional
+    tarik_uang_str = st.text_input("💵 Total Penarikan Uang Cash (Rp)", placeholder="Ketik nominal (contoh: 5000000)")
+    
+    if tarik_uang_str.strip():
+        if tarik_uang_str.strip().isdigit():
+            nominal_format = f"Rp {int(tarik_uang_str.strip()):,}".replace(",", ".")
+            st.success(f"✅ Nominal penarikan tunai saat ini tercatat sebesar **{nominal_format}**")
+        else:
+            st.error("⚠️ Mohon ketik nominal penarikan berupa angka yang valid.")
     
     st.markdown("---")
     st.subheader("🛒 Pencatatan Pengeluaran Lain-Lain")
