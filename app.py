@@ -207,7 +207,7 @@ with menu1:
                     st.rerun()
 
 # ==========================================
-# MENU 2: DATABASE & EDIT PEKERJAAN (OTOMATIS & BERSIH TANPA INDEX)
+# MENU 2: DATABASE & EDIT PEKERJAAN (ANGKA MENGGUNAKAN TITIK)
 # ==========================================
 with menu2:
     st.header("Database Riwayat Pekerjaan (Per Hari)")
@@ -225,10 +225,14 @@ with menu2:
             
             for tgl, hari in daftar_tanggal:
                 with st.expander(f"📅 Hari **{hari}**, Tanggal **{tgl}**", expanded=True):
-                    df_harian = df_tampil[(df_tampil['Tanggal'] == tgl) & (df_tampil['Hari'] == hari)].copy()
+                    df_harian = df_tampil[(df_tampil['Tanggal'] == tgl) & (df_harian['Hari'] == hari)].copy()
                     
-                    # Mengatur view dan mereset index agar benar-benar bersih dari angka urutan
                     df_harian_view = df_harian[['ID Data', 'Nama', 'Pekerjaan', 'Upah', 'Jumlah', 'Total']].copy().reset_index(drop=True)
+                    
+                    # Memastikan tipe data angka terbaca dengan benar
+                    df_harian_view['Upah'] = pd.to_numeric(df_harian_view['Upah'], errors='coerce').fillna(0)
+                    df_harian_view['Jumlah'] = pd.to_numeric(df_harian_view['Jumlah'], errors='coerce').fillna(0)
+                    df_harian_view['Total'] = pd.to_numeric(df_harian_view['Total'], errors='coerce').fillna(0)
                     
                     notif_key = f"notif_2_{tgl}_{hari}"
                     notif_area_2 = st.empty()
@@ -262,8 +266,13 @@ with menu2:
                         df_harian_view, 
                         num_rows="dynamic", 
                         use_container_width=True, 
-                        column_config={"ID Data": None}, 
-                        hide_index=True,  # Menghilangkan kolom angka indeks secara total
+                        column_config={
+                            "ID Data": None,
+                            "Upah": st.column_config.NumberColumn("Upah", format="#,##0"),
+                            "Jumlah": st.column_config.NumberColumn("Jumlah", format="#,##0"),
+                            "Total": st.column_config.NumberColumn("Total", format="#,##0")
+                        }, 
+                        hide_index=True, 
                         key=f"editor_{tgl}_{hari}",
                         on_change=save_callback
                     )
