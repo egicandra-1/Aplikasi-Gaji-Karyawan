@@ -263,7 +263,7 @@ with menu2:
             
             for tgl, hari in daftar_tanggal:
                 with st.expander(f"📅 Hari **{hari}**, Tanggal **{tgl}**", expanded=True):
-                    df_harian = df_tampil[(df_tampil['Tanggal'] == tgl) & (df_harian['Hari'] == hari)].copy()
+                    df_harian = df_tampil[(df_tampil['Tanggal'] == tgl) & (df_tampil['Hari'] == hari)].copy()
                     
                     df_harian_view = df_harian[['ID Data', 'Nama', 'Pekerjaan', 'Upah', 'Jumlah', 'Total']].copy().reset_index(drop=True)
                     
@@ -402,7 +402,7 @@ with menu3:
                     st.rerun()
 
 # ==========================================
-# MENU 4: CETAK SLIP GAJI (FIT KONTEN RAPAT, TANPA RUANG KOSONG, TAJAM HD)
+# MENU 4: CETAK SLIP GAJI (FIT KONTEN SEMPURNA & SUPER TAJAM HD)
 # ==========================================
 with menu4:
     st.header("Cetak & Unduh Slip Gaji")
@@ -472,7 +472,7 @@ with menu4:
                     baris_slip.append((f"TOTAL GAJI : Rp {total_bersih:,.0f}".replace(",", "."), 13))
                     baris_slip.append(("=================================", 10))
                     
-                    # Kanvas super rapat (fit konten) dengan resolusi tinggi 4x tanpa sisa ruang kosong
+                    # Kanvas pas rapat fit konten dan super tajam HD
                     scale = 4
                     base_w = 270
                     total_h = sum([sz for _, sz in baris_slip]) + 8
