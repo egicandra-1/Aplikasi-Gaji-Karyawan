@@ -135,21 +135,34 @@ menu1, menu2, menu3, menu4, menu5, menu6 = st.tabs([
 with menu1:
     st.header("Input Pekerjaan Harian")
     
+    # Menampilkan notifikasi sukses agar tetap muncul setelah layar di-refresh otomatis
+    if "notif_sukses_harian" in st.session_state:
+        st.success(st.session_state.notif_sukses_harian)
+        del st.session_state.notif_sukses_harian
+
+    # Memori untuk mengingat Pilihan Tanggal dan Karyawan terakhir
+    if "last_date_harian" not in st.session_state:
+        st.session_state.last_date_harian = datetime.today()
+    if "last_karyawan_harian" not in st.session_state:
+        st.session_state.last_karyawan_harian = daftar_karyawan[0] if daftar_karyawan else ""
+    
     if len(daftar_karyawan) == 0 or len(daftar_pekerjaan) == 0:
         st.warning("⚠️ Data Karyawan atau Pekerjaan kosong. Silakan isi terlebih dahulu di Menu 6.")
     else:
         with st.form("form_input_harian", clear_on_submit=True):
             col_tgl, col_nama = st.columns(2)
             with col_tgl:
-                tanggal = st.date_input("Pilih Tanggal", datetime.today(), format="DD/MM/YYYY")
+                # Menggunakan memori last_date_harian
+                tanggal = st.date_input("Pilih Tanggal", st.session_state.last_date_harian, format="DD/MM/YYYY")
                 nama_hari = HARI_INDO[tanggal.strftime("%A")]
                 
             with col_nama:
-                nama = st.selectbox("Pilih Karyawan", daftar_karyawan)
+                # Menggunakan memori last_karyawan_harian
+                idx_kar = daftar_karyawan.index(st.session_state.last_karyawan_harian) if st.session_state.last_karyawan_harian in daftar_karyawan else 0
+                nama = st.selectbox("Pilih Karyawan", daftar_karyawan, index=idx_kar)
 
             st.markdown("---")
-            # Kembali menggunakan Markdown standar yang bersih, karena ikon rantai sudah dimatikan secara global
-            st.markdown("### ⚡ Panel Input Harian")
+            st.markdown("<div style='font-size: 22px; font-weight: bold; margin-bottom: 15px;'>⚡ Panel Input Harian</div>", unsafe_allow_html=True)
             
             col1, col2 = st.columns([2, 1])
             with col1:
@@ -177,8 +190,13 @@ with menu1:
                         # Simpan Background ke Sheets
                         ws["gaji"].append_row([id_data, nama_hari, tgl_str, nama, pekerjaan, upah, jumlah, total])
                         
+                        # MEMPERBARUI MEMORI TANGGAL DAN KARYAWAN TERAKHIR
+                        st.session_state.last_date_harian = tanggal
+                        st.session_state.last_karyawan_harian = nama
+                        
                         jml_fmt = f"{jumlah:,.0f}".replace(",", ".")
-                        st.success(f"✅ Tersimpan Kilat! {jml_fmt} {pekerjaan} untuk {nama}.")
+                        st.session_state.notif_sukses_harian = f"✅ Tersimpan Kilat! {jml_fmt} {pekerjaan} untuk {nama}."
+                        st.rerun() # Refresh seketika agar form bersih tapi tanggal & nama tetap
                     except Exception as e:
                         st.error(f"⚠️ Gagal simpan: {e}")
                 else:
@@ -248,13 +266,25 @@ with menu2:
 # ==========================================
 with menu3:
     st.header("Pencatatan Penambahan & Pengurangan")
+    
+    if "notif_sukses_kb" in st.session_state:
+        st.success(st.session_state.notif_sukses_kb)
+        del st.session_state.notif_sukses_kb
+
+    # Memori untuk Tanggal dan Karyawan di Menu Kasbon
+    if "last_date_kb" not in st.session_state:
+        st.session_state.last_date_kb = datetime.today()
+    if "last_karyawan_kb" not in st.session_state:
+        st.session_state.last_karyawan_kb = daftar_karyawan[0] if daftar_karyawan else ""
+
     if len(daftar_karyawan) > 0:
         with st.form("form_kasbon", clear_on_submit=True):
             col_kb1, col_kb2, col_kb3 = st.columns(3)
             with col_kb1:
-                tgl_kb = st.date_input("Tanggal Transaksi", datetime.today(), format="DD/MM/YYYY")
+                tgl_kb = st.date_input("Tanggal Transaksi", st.session_state.last_date_kb, format="DD/MM/YYYY")
             with col_kb2:
-                nama_kb = st.selectbox("Pilih Karyawan", daftar_karyawan)
+                idx_kb = daftar_karyawan.index(st.session_state.last_karyawan_kb) if st.session_state.last_karyawan_kb in daftar_karyawan else 0
+                nama_kb = st.selectbox("Pilih Karyawan", daftar_karyawan, index=idx_kb)
             with col_kb3:
                 tipe_kb = st.selectbox("Jenis Transaksi", ["Penambahan", "Pengurangan"])
                 
@@ -276,7 +306,13 @@ with menu3:
                         st.session_state.df_kasbon = pd.concat([st.session_state.df_kasbon, baris_kb], ignore_index=True)
                         
                         ws["kasbon"].append_row([id_kb, tgl_str, nama_kb, tipe_kb, ket_kb, nominal_kb])
-                        st.success("✅ Berhasil menyimpan data!")
+                        
+                        # MEMPERBARUI MEMORI
+                        st.session_state.last_date_kb = tgl_kb
+                        st.session_state.last_karyawan_kb = nama_kb
+                        
+                        st.session_state.notif_sukses_kb = "✅ Berhasil menyimpan data!"
+                        st.rerun()
                     except Exception as e:
                         st.error(f"Gagal: {e}")
                 else:
