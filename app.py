@@ -14,7 +14,7 @@ HARI_INDO = {
     "Thursday": "Kamis", "Friday": "Jumat", "Saturday": "Sabtu", "Sunday": "Minggu"
 }
 
-URUTAN_HARI = {"Senin": 1, "Selasa": 2, "Rabu": 3, "Kamis": 4, "Jumat": 5, "Sabtu": 6, "Ninggu": 7}
+URUTAN_HARI = {"Senin": 1, "Selasa": 2, "Rabu": 3, "Kamis": 4, "Jumat": 5, "Sabtu": 6, "Minggu": 7}
 
 st.set_page_config(page_title="Sistem Penggajian", layout="wide", page_icon="📝")
 
@@ -279,24 +279,33 @@ with menu2:
                     def save_callback(t=tgl, h=hari, orig_ids=df_harian['ID Data'].tolist()):
                         edited_df = st.session_state[f"editor_{t}_{h}"]
                         
-                        # Membaca data secara aman berdasarkan nomor kolom (0: ID, 1: Nama, 2: Pekerjaan, 3: Upah, 4: Jumlah, 5: Total)
-                        ids = edited_df.iloc[:, 0].apply(lambda x: f"ID-{int(time.time())}" if pd.isna(x) or str(x).strip() == "" else str(x))
-                        namas = edited_df.iloc[:, 1]
-                        pekerjaans = edited_df.iloc[:, 2]
-                        upahs = pd.to_numeric(edited_df.iloc[:, 3], errors='coerce').fillna(0)
-                        jumlahs = pd.to_numeric(edited_df.iloc[:, 4], errors='coerce').fillna(0)
-                        totals = jumlahs * upahs
-                        
-                        df_processed = pd.DataFrame({
-                            'ID Data': ids,
-                            'Hari': h,
-                            'Tanggal': t,
-                            'Nama': namas,
-                            'Pekerjaan': pekerjaans,
-                            'Upah': upahs,
-                            'Jumlah': jumlahs,
-                            'Total': totals
-                        })
+                        if edited_df.empty:
+                            df_processed = pd.DataFrame(columns=['ID Data', 'Hari', 'Tanggal', 'Nama', 'Pekerjaan', 'Upah', 'Jumlah', 'Total'])
+                        else:
+                            # Mengambil data dengan pengaman pengecekan kolom
+                            col_id = edited_df.columns[0] if len(edited_df.columns) > 0 else None
+                            col_nama = edited_df.columns[1] if len(edited_df.columns) > 1 else None
+                            col_pek = edited_df.columns[2] if len(edited_df.columns) > 2 else None
+                            col_upah = edited_df.columns[3] if len(edited_df.columns) > 3 else None
+                            col_jml = edited_df.columns[4] if len(edited_df.columns) > 4 else None
+                            
+                            ids = edited_df[col_id].apply(lambda x: f"ID-{int(time.time())}" if pd.isna(x) or str(x).strip() == "" else str(x)) if col_id else [f"ID-{int(time.time())}-{i}" for i in range(len(edited_df))]
+                            namas = edited_df[col_nama] if col_nama else ""
+                            pekerjaans = edited_df[col_pek] if col_pek else ""
+                            upahs = pd.to_numeric(edited_df[col_upah], errors='coerce').fillna(0) if col_upah else 0
+                            jumlahs = pd.to_numeric(edited_df[col_jml], errors='coerce').fillna(0) if col_jml else 0
+                            totals = jumlahs * upahs
+                            
+                            df_processed = pd.DataFrame({
+                                'ID Data': ids,
+                                'Hari': h,
+                                'Tanggal': t,
+                                'Nama': namas,
+                                'Pekerjaan': pekerjaans,
+                                'Upah': upahs,
+                                'Jumlah': jumlahs,
+                                'Total': totals
+                            })
                         
                         df_sisa = st.session_state.df_gaji[~st.session_state.df_gaji['ID Data'].isin(orig_ids)]
                         df_final = pd.concat([df_sisa, df_processed]).sort_values(by="Tanggal").reset_index(drop=True)
