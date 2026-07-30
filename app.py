@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import time
-from datetime import datetime
+from datetime import datetime, date
 from PIL import Image, ImageDraw, ImageFont
 import io
 import gspread
@@ -19,7 +19,7 @@ URUTAN_HARI = {"Senin": 1, "Selasa": 2, "Rabu": 3, "Kamis": 4, "Jumat": 5, "Sabt
 st.set_page_config(page_title="Sistem Penggajian", layout="wide", page_icon="📝")
 
 # ==========================================
-# SUNTIKAN CSS: BERSIH & MATIKAN SHORTCUT 'C'
+# SUNTIKAN CSS: MENGHILANGKAN IKON RANTAI GLOBAL
 # ==========================================
 st.markdown("""
     <style>
@@ -45,10 +45,8 @@ st.markdown("""
     </style>
     
     <script>
-    // Mematikan fungsi tombol C agar tidak memunculkan menu Clear Cache saat mengetik
     document.addEventListener('keydown', function(e) {
         if (e.key === 'c' || e.key === 'C') {
-            // Cek apakah pengguna sedang mengetik di dalam input atau editor tabel
             if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName) || document.activeElement.getAttribute('contenteditable') === 'true') {
                 e.stopPropagation();
             }
@@ -224,20 +222,43 @@ with menu1:
                     st.rerun()
 
 # ==========================================
-# MENU 2: DATABASE & EDIT PEKERJAAN (AMAN & TANPA BUG)
+# MENU 2: DATABASE & EDIT PEKERJAAN
 # ==========================================
 with menu2:
-    st.header("Database Riwayat Pekerjaan (Per Hari)")
-    st.caption("💡 Cukup edit angka atau teks langsung di tabel, lalu tekan **Enter**. Data akan otomatis tersimpan seketika!")
+    st.header("Database Riwayat Pekerjaan")
+    st.caption("💡 Pilih rentang tanggal pada kalender di bawah untuk melihat data periode tertentu. Cukup edit langsung di tabel lalu tekan **Enter**.")
+    
     df_gaji = st.session_state.df_gaji
     
     if len(df_gaji) > 0:
-        filter_nama = st.selectbox("🔍 Tampilkan data khusus untuk:", ["Semua Karyawan"] + daftar_karyawan, key="filter_db_kerja")
-        df_tampil = df_gaji if filter_nama == "Semua Karyawan" else df_gaji[df_gaji['Nama'] == filter_nama]
+        df_gaji['Date_Obj'] = pd.to_datetime(df_gaji['Tanggal']).dt.date
+        min_tgl = df_gaji['Date_Obj'].min()
+        max_tgl = df_gaji['Date_Obj'].max()
+        
+        col_f1, col_f2 = st.columns([2, 1])
+        with col_f1:
+            rentang_tanggal = st.date_input(
+                "Pilih Periode Tanggal",
+                value=(min_tgl, max_tgl),
+                min_value=min_tgl,
+                max_value=datetime.today().date(),
+                format="DD/MM/YYYY"
+            )
+        with col_f2:
+            filter_nama = st.selectbox("🔍 Filter Karyawan:", ["Semua Karyawan"] + daftar_karyawan, key="filter_db_kerja")
+            
+        if isinstance(rentang_tanggal, tuple) and len(rentang_tanggal) == 2:
+            tgl_mulai, tgl_selesai = rentang_tanggal
+        else:
+            tgl_mulai = tgl_selesai = rentang_tanggal[0] if isinstance(rentang_tanggal, tuple) else rentang_tanggal
+
+        df_tampil = df_gaji[(df_gaji['Date_Obj'] >= tgl_mulai) & (df_gaji['Date_Obj'] <= tgl_selesai)].copy()
+        if filter_nama != "Semua Karyawan":
+            df_tampil = df_tampil[df_tampil['Nama'] == filter_nama]
             
         if len(df_tampil) > 0:
             df_tampil['Urutan_Hari'] = df_tampil['Hari'].map(URUTAN_HARI)
-            df_tampil = df_tampil.sort_values(by=["Tanggal", "Urutan_Hari"]).drop(columns=["Urutan_Hari"])
+            df_tampil = df_tampil.sort_values(by=["Tanggal", "Urutan_Hari"]).drop(columns=["Urutan_Hari", "Date_Obj"])
             daftar_tanggal = df_tampil[['Tanggal', 'Hari']].drop_duplicates().values
             
             for tgl, hari in daftar_tanggal:
@@ -246,7 +267,6 @@ with menu2:
                     
                     df_harian_view = df_harian[['ID Data', 'Nama', 'Pekerjaan', 'Upah', 'Jumlah', 'Total']].copy().reset_index(drop=True)
                     
-                    # Memastikan angka tampil normal dan bersih
                     df_harian_view['Upah'] = pd.to_numeric(df_harian_view['Upah'], errors='coerce').fillna(0)
                     df_harian_view['Jumlah'] = pd.to_numeric(df_harian_view['Jumlah'], errors='coerce').fillna(0)
                     df_harian_view['Total'] = pd.to_numeric(df_harian_view['Total'], errors='coerce').fillna(0)
@@ -276,6 +296,7 @@ with menu2:
                         
                         df_sisa = st.session_state.df_gaji[~st.session_state.df_gaji['ID Data'].isin(orig_ids)]
                         df_final = pd.concat([df_sisa, edited_df]).sort_values(by="Tanggal").reset_index(drop=True)
+                        if 'Date_Obj' in df_final.columns: df_final = df_final.drop(columns=['Date_Obj'])
                         
                         st.session_state.df_gaji = df_final
                         ws["gaji"].clear()
@@ -297,7 +318,7 @@ with menu2:
                         on_change=save_callback
                     )
         else:
-            st.info(f"Tidak ada riwayat pekerjaan untuk {filter_nama}.")
+            st.info(f"Tidak ada riwayat pekerjaan pada rentang tanggal tersebut.")
     else:
         st.info("Belum ada data pekerjaan yang tersimpan.")
 
@@ -376,11 +397,18 @@ with menu4:
     df_kasbon = st.session_state.df_kasbon.copy()
     
     if len(df_gaji) > 0 and len(daftar_karyawan) > 0:
-        col_a, col_b = st.columns(2)
-        with col_a:
-            tgl_mulai = st.date_input("Dari Tanggal", datetime.today(), max_value=datetime.today(), format="DD/MM/YYYY", key="tgl_mulai_slip")
-        with col_b:
-            tgl_selesai = st.date_input("Sampai Tanggal", datetime.today(), max_value=datetime.today(), format="DD/MM/YYYY", key="tgl_selesai_slip")
+        rentang_slip = st.date_input(
+            "Pilih Periode Tanggal Slip Gaji",
+            value=(datetime.today().date(), datetime.today().date()),
+            max_value=datetime.today().date(),
+            format="DD/MM/YYYY",
+            key="rentang_slip_gaji"
+        )
+        
+        if isinstance(rentang_slip, tuple) and len(rentang_slip) == 2:
+            tgl_mulai_slip, tgl_selesai_slip = rentang_slip
+        else:
+            tgl_mulai_slip = tgl_selesai_slip = rentang_slip[0] if isinstance(rentang_slip, tuple) else rentang_slip
             
         nama_slip_pilihan = st.selectbox("Pilih Nama Karyawan", ["Semua Karyawan"] + daftar_karyawan, key="slip_nama")
         
@@ -389,15 +417,15 @@ with menu4:
             target_karyawan = daftar_karyawan if nama_slip_pilihan == "Semua Karyawan" else [nama_slip_pilihan]
             
             for nama_slip in target_karyawan:
-                df_filter_gaji = df_gaji[(df_gaji['Nama'] == nama_slip) & (df_gaji['Tanggal'] >= tgl_mulai) & (df_gaji['Tanggal'] <= tgl_selesai)]
-                df_filter_kb = df_kasbon[(df_kasbon['Nama'] == nama_slip) & (pd.to_datetime(df_kasbon['Tanggal']).dt.date >= tgl_mulai) & (pd.to_datetime(df_kasbon['Tanggal']).dt.date <= tgl_selesai)] if len(df_kasbon) > 0 else pd.DataFrame()
+                df_filter_gaji = df_gaji[(df_gaji['Nama'] == nama_slip) & (df_gaji['Tanggal'] >= tgl_mulai_slip) & (df_gaji['Tanggal'] <= tgl_selesai_slip)]
+                df_filter_kb = df_kasbon[(df_kasbon['Nama'] == nama_slip) & (pd.to_datetime(df_kasbon['Tanggal']).dt.date >= tgl_mulai_slip) & (pd.to_datetime(df_kasbon['Tanggal']).dt.date <= tgl_selesai_slip)] if len(df_kasbon) > 0 else pd.DataFrame()
                 
                 if len(df_filter_gaji) > 0 or len(df_filter_kb) > 0:
                     baris_gambar_info = [
                         ("       SLIP GAJI", True),
                         ("================================", False),
                         (f"Nama    : {nama_slip}", True),
-                        (f"Periode : {tgl_mulai.strftime('%d/%m/%Y')} - {tgl_selesai.strftime('%d/%m/%Y')}", True),
+                        (f"Periode : {tgl_mulai_slip.strftime('%d/%m/%Y')} - {tgl_selesai_slip.strftime('%d/%m/%Y')}", True),
                         ("================================", False),
                         ("", False)
                     ]
@@ -458,9 +486,18 @@ with menu5:
     df_kasbon = st.session_state.df_kasbon.copy()
     df_lain_all = st.session_state.df_pengeluaran.copy()
     
-    col_r1, col_r2 = st.columns(2)
-    with col_r1: tgl_mulai_res = st.date_input("Dari Tanggal", datetime.today(), max_value=datetime.today(), format="DD/MM/YYYY", key="res_mulai")
-    with col_r2: tgl_selesai_res = st.date_input("Sampai Tanggal", datetime.today(), max_value=datetime.today(), format="DD/MM/YYYY", key="res_selesai")
+    # KALENDER RENTANG MENYATU UNTUK LAPORAN RESUME KAS
+    rentang_res = st.date_input(
+        "Pilih Periode Resume Kas",
+        value=(datetime.today().date(), datetime.today().date()),
+        max_value=datetime.today().date(),
+        format="DD/MM/YYYY",
+        key="rentang_resume"
+    )
+    if isinstance(rentang_res, tuple) and len(rentang_res) == 2:
+        tgl_mulai_res, tgl_selesai_res = rentang_res
+    else:
+        tgl_mulai_res = tgl_selesai_res = rentang_res[0] if isinstance(rentang_res, tuple) else rentang_res
     
     tarik_uang_str = st.text_input("💵 Total Penarikan Uang Cash (Rp)", placeholder="Ketik nominal...")
     
