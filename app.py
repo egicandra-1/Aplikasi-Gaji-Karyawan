@@ -35,7 +35,7 @@ def init_connection_v3():
 @st.cache_resource
 def get_all_worksheets():
     client = init_connection_v3()
-    # Langsung menggunakan URL sesuai instruksi Anda
+    # Langsung menggunakan URL
     ss = client.open_by_url("https://docs.google.com/spreadsheets/d/1nSVOJTyA48REHwPvaWbvVXUupdh_GcrCHvBqbEA-xe8/edit")
     
     # Fungsi bantu untuk membuat tab otomatis jika belum ada di Google Sheets
@@ -56,7 +56,7 @@ def get_all_worksheets():
         "pekerjaan": get_or_create("Master_Pekerjaan", ["Jenis Pekerjaan", "Harga Per Pcs"])
     }
 
-# Panggil fungsi dan simpan worksheet ke variabel (Sama persis seperti pola Gudang)
+# Panggil fungsi dan simpan worksheet ke variabel
 ws = get_all_worksheets()
 
 # ==========================================
@@ -194,11 +194,13 @@ with menu2:
                     df_harian = df_tampil[(df_tampil['Tanggal'] == tgl) & (df_tampil['Hari'] == hari)].copy()
                     
                     with st.form(f"form_edit_harian_{tgl}_{hari}"):
+                        # Tabel instan tanpa angka indeks di sisi kiri (hide_index=True)
                         df_harian_edit = st.data_editor(
                             df_harian, 
                             num_rows="dynamic", 
                             use_container_width=True, 
                             column_config={"ID Data": None}, # ID Data disembunyikan agar bersih
+                            hide_index=True, # Menghilangkan kolom nomor urut default
                             key=f"editor_{tgl}_{hari}"
                         )
                         
@@ -493,7 +495,8 @@ with menu6:
             edited_karyawan = st.data_editor(
                 st.session_state.df_karyawan, 
                 num_rows="dynamic", 
-                use_container_width=True
+                use_container_width=True,
+                hide_index=True # Menghilangkan kolom nomor urut (0, 1, 2...)
             )
             
             if st.form_submit_button("💾 Simpan Perubahan Karyawan", type="primary", use_container_width=True):
@@ -516,7 +519,8 @@ with menu6:
             edited_pekerjaan = st.data_editor(
                 st.session_state.df_pekerjaan, 
                 num_rows="dynamic", 
-                use_container_width=True
+                use_container_width=True,
+                hide_index=True # Menghilangkan kolom nomor urut (0, 1, 2...)
             )
             
             if st.form_submit_button("💾 Simpan Perubahan Pekerjaan", type="primary", use_container_width=True):
