@@ -36,7 +36,7 @@ def init_connection():
 client = init_connection()
 spreadsheet = client.open("Database_Aplikasi_Gaji")
 
-# --- FUNGSI BANTU GOOGLE SHEETS (DENGAN PENANGANAN ERROR OTOMATIS) ---
+# --- FUNGSI BANTU GOOGLE SHEETS (DENGAN CACHE) ---
 @st.cache_data(ttl=600)
 def load_data_from_sheet(nama_sheet, kolom_default):
     try:
@@ -142,7 +142,7 @@ with menu1:
 
             st.markdown("---")
             st.markdown("### ⚡ Panel Input Harian")
-            st.caption("Pilih pekerjaan, ketik jumlahnya, lalu klik tombol Simpan.")
+            st.caption("Pilih pekerjaan, ketik jumlahnya, lalu **tekan Enter** pada keyboard atau klik tombol Simpan.")
             
             col1, col2 = st.columns([2, 1])
             with col1:
@@ -608,69 +608,28 @@ with menu5:
         )
 
 # ==========================================
-# MENU 6: PENGATURAN KARYAWAN & PEKERJAAN (MENGGUNAKAN FORM AMAN & TOMBOL SIMPAN)
+# MENU 6: PENGATURAN KARYAWAN & PEKERJAAN (MENGGUNAKAN TABEL INTERAKTIF SEPERTI SEMULA)
 # ==========================================
 with menu6:
     st.header("Pengaturan Master Data")
-    st.caption("💡 Tambahkan Karyawan atau Pekerjaan baru dengan aman menggunakan form di bawah ini.")
+    st.caption("💡 Tips: Tambahkan nama/pekerjaan di baris kosong bawah, edit langsung di tabel, atau pilih baris lalu tekan 'Delete' di keyboard / ikon hapus untuk menghapus.")
     
     col_karyawan, col_pekerjaan = st.columns(2)
     
     with col_karyawan:
         st.subheader("👥 Daftar Nama Karyawan")
+        df_karyawan_edit = st.data_editor(df_karyawan, num_rows="dynamic", use_container_width=True, key="edit_tabel_karyawan")
         
-        with st.form("form_tambah_karyawan", clear_on_submit=True):
-            nama_baru = st.text_input("Nama Karyawan Baru", placeholder="Ketik nama...")
-            btn_tambah_karyawan = st.form_submit_button("➕ Tambah Karyawan", type="primary", use_container_width=True)
-            if btn_tambah_karyawan:
-                if nama_baru.strip() != "":
-                    if nama_baru not in daftar_karyawan:
-                        try:
-                            worksheet = spreadsheet.worksheet(SHEET_KARYAWAN)
-                            worksheet.append_row([nama_baru.strip()])
-                            load_data_from_sheet.clear()
-                            st.success(f"Berhasil menambahkan {nama_baru}!")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Gagal simpan ke server: {e}")
-                    else:
-                        st.warning("Nama karyawan sudah ada!")
-                else:
-                    st.warning("Mohon isi nama karyawan.")
-        
-        st.write("Daftar Karyawan Saat Ini:")
-        if not df_karyawan.empty:
-            for idx, row in df_karyawan.iterrows():
-                st.text(f"• {row['Nama Karyawan']}")
-        else:
-            st.info("Belum ada data karyawan.")
+        if not df_karyawan.equals(df_karyawan_edit):
+            save_data_to_sheet(SHEET_KARYAWAN, df_karyawan_edit)
+            st.toast("Daftar Karyawan diperbarui otomatis! 💾", icon="✅")
+            st.rerun()
 
     with col_pekerjaan:
         st.subheader("🛠️ Daftar & Harga Pekerjaan")
+        df_pekerjaan_edit = st.data_editor(df_pekerjaan, num_rows="dynamic", use_container_width=True, key="edit_tabel_pekerjaan")
         
-        with st.form("form_tambah_pekerjaan", clear_on_submit=True):
-            pek_baru = st.text_input("Jenis Pekerjaan Baru", placeholder="Ketik jenis pekerjaan...")
-            harga_baru = st.number_input("Harga Per Pcs (Rp)", min_value=0, step=50, value=0)
-            btn_tambah_pek = st.form_submit_button("➕ Tambah Pekerjaan", type="primary", use_container_width=True)
-            if btn_tambah_pek:
-                if pek_baru.strip() != "":
-                    if pek_baru not in daftar_pekerjaan:
-                        try:
-                            worksheet = spreadsheet.worksheet(SHEET_PEKERJAAN)
-                            worksheet.append_row([pek_baru.strip(), harga_baru])
-                            load_data_from_sheet.clear()
-                            st.success(f"Berhasil menambahkan {pek_baru}!")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Gagal simpan ke server: {e}")
-                    else:
-                        st.warning("Jenis pekerjaan sudah ada!")
-                else:
-                    st.warning("Mohon isi nama pekerjaan.")
-
-        st.write("Daftar Pekerjaan & Harga Saat Ini:")
-        if not df_pekerjaan.empty:
-            for idx, row in df_pekerjaan.iterrows():
-                st.text(f"• {row['Jenis Pekerjaan']} (Rp {row['Harga Per Pcs']:,.0f})".replace(",", "."))
-        else:
-            st.info("Belum ada data pekerjaan.")
+        if not df_pekerjaan.equals(df_pekerjaan_edit):
+            save_data_to_sheet(SHEET_PEKERJAAN, df_pekerjaan_edit)
+            st.toast("Daftar Pekerjaan diperbarui otomatis! 💾", icon="✅")
+            st.rerun()
