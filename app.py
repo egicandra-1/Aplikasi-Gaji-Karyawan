@@ -19,13 +19,23 @@ URUTAN_HARI = {"Senin": 1, "Selasa": 2, "Rabu": 3, "Kamis": 4, "Jumat": 5, "Sabt
 st.set_page_config(page_title="Sistem Penggajian", layout="wide", page_icon="📝")
 
 # ==========================================
-# SUNTIKAN CSS: MENGHILANGKAN IKON RANTAI GLOBAL
+# SUNTIKAN CSS: MENGHILANGKAN IKON RANTAI & ANIMASI NOTIFIKASI
 # ==========================================
 st.markdown("""
     <style>
-    /* Menyembunyikan ikon rantai (anchor links) di semua judul Streamlit */
+    /* Menyembunyikan ikon rantai di semua judul */
     h1 a, h2 a, h3 a, h4 a, h5 a, h6 a {
         display: none !important;
+    }
+    
+    /* Animasi memudar otomatis untuk semua notifikasi (Alert) */
+    @keyframes fadeOutAlert {
+        0% { opacity: 1; }
+        80% { opacity: 1; }
+        100% { opacity: 0; visibility: hidden; }
+    }
+    [data-testid="stAlert"] {
+        animation: fadeOutAlert 2.5s ease-out forwards;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -33,7 +43,7 @@ st.markdown("""
 st.title("Aplikasi Rekap Gaji Karyawan")
 
 # ==========================================
-# 1. KONEKSI GOOGLE SHEETS (POLA GUDANG - SUPER CEPAT)
+# 1. KONEKSI GOOGLE SHEETS
 # ==========================================
 @st.cache_resource
 def init_connection_v3():
@@ -48,10 +58,8 @@ def init_connection_v3():
 @st.cache_resource
 def get_all_worksheets():
     client = init_connection_v3()
-    # Langsung menggunakan URL
     ss = client.open_by_url("https://docs.google.com/spreadsheets/d/1nSVOJTyA48REHwPvaWbvVXUupdh_GcrCHvBqbEA-xe8/edit")
     
-    # Fungsi bantu untuk membuat tab otomatis jika belum ada di Google Sheets
     def get_or_create(name, cols):
         try:
             return ss.worksheet(name)
@@ -60,7 +68,6 @@ def get_all_worksheets():
             ws.append_row(cols)
             return ws
 
-    # Menyimpan objek worksheet langsung ke memori agar 0 detik loading
     return {
         "gaji": get_or_create("Data_Gaji", ["ID Data", "Hari", "Tanggal", "Nama", "Pekerjaan", "Upah", "Jumlah", "Total"]),
         "kasbon": get_or_create("Data_Kasbon_Bonus", ["ID Kasbon", "Tanggal", "Nama", "Tipe", "Keterangan", "Nominal"]),
@@ -69,27 +76,23 @@ def get_all_worksheets():
         "pekerjaan": get_or_create("Master_Pekerjaan", ["Jenis Pekerjaan", "Harga Per Pcs"])
     }
 
-# Panggil fungsi dan simpan worksheet ke variabel
 ws = get_all_worksheets()
 
 # ==========================================
-# 2. SISTEM MEMORI LOKAL (MEMBACA DATA HANYA 1x)
+# 2. SISTEM MEMORI LOKAL
 # ==========================================
 def load_data_to_memory():
-    # Load Gaji
     data_gaji = ws["gaji"].get_all_records()
     df_gaji = pd.DataFrame(data_gaji) if data_gaji else pd.DataFrame(columns=["ID Data", "Hari", "Tanggal", "Nama", "Pekerjaan", "Upah", "Jumlah", "Total"])
     if "Harga" in df_gaji.columns: df_gaji = df_gaji.rename(columns={"Harga": "Upah"})
     st.session_state.df_gaji = df_gaji
     
-    # Load Kasbon & Pengeluaran
     data_kasbon = ws["kasbon"].get_all_records()
     st.session_state.df_kasbon = pd.DataFrame(data_kasbon) if data_kasbon else pd.DataFrame(columns=["ID Kasbon", "Tanggal", "Nama", "Tipe", "Keterangan", "Nominal"])
     
     data_pengeluaran = ws["pengeluaran"].get_all_records()
     st.session_state.df_pengeluaran = pd.DataFrame(data_pengeluaran) if data_pengeluaran else pd.DataFrame(columns=["ID Lain", "Keterangan", "Nominal"])
     
-    # Load Karyawan
     data_karyawan = ws["karyawan"].get_all_records()
     if not data_karyawan:
         df_kar = pd.DataFrame({"Nama Karyawan": ["Teh Eva", "Bi Nyai", "Radi", "Ula", "Sintia", "Mang Ade", "Mang Koko", "Yoga", "Samsul"]})
@@ -99,7 +102,6 @@ def load_data_to_memory():
     else:
         st.session_state.df_karyawan = pd.DataFrame(data_karyawan)
         
-    # Load Pekerjaan
     data_pekerjaan = ws["pekerjaan"].get_all_records()
     if not data_pekerjaan:
         df_pek = pd.DataFrame({"Jenis Pekerjaan": ["Bungkus Patung", "Packing Styrofoam", "Bungkus Cat"], "Harga Per Pcs": [150, 400, 15]})
@@ -114,12 +116,10 @@ if "data_loaded" not in st.session_state:
         load_data_to_memory()
         st.session_state.data_loaded = True
 
-# Siapkan list untuk dropdown
 daftar_karyawan = st.session_state.df_karyawan["Nama Karyawan"].dropna().tolist() if not st.session_state.df_karyawan.empty else []
 daftar_pekerjaan = st.session_state.df_pekerjaan["Jenis Pekerjaan"].dropna().tolist() if not st.session_state.df_pekerjaan.empty else []
 tarif_pekerjaan = dict(zip(st.session_state.df_pekerjaan["Jenis Pekerjaan"], pd.to_numeric(st.session_state.df_pekerjaan["Harga Per Pcs"], errors='coerce').fillna(0))) if not st.session_state.df_pekerjaan.empty else {}
 
-# --- MENU NAVIGASI ---
 menu1, menu2, menu3, menu4, menu5, menu6 = st.tabs([
     "📝 1. Input Harian", 
     "📂 2. Database Pekerjaan", 
@@ -134,13 +134,7 @@ menu1, menu2, menu3, menu4, menu5, menu6 = st.tabs([
 # ==========================================
 with menu1:
     st.header("Input Pekerjaan Harian")
-    
-    # Menampilkan Notifikasi Toast Pop-up
-    if "notif_sukses_harian" in st.session_state:
-        st.toast(st.session_state.notif_sukses_harian, icon="✅")
-        del st.session_state.notif_sukses_harian
 
-    # Memastikan nilai default memori tidak melebihi tanggal hari ini
     today_date = datetime.today().date()
     if "last_date_harian" not in st.session_state or st.session_state.last_date_harian > today_date:
         st.session_state.last_date_harian = today_date
@@ -154,7 +148,6 @@ with menu1:
         with st.form("form_input_harian", clear_on_submit=True):
             col_tgl, col_nama = st.columns(2)
             with col_tgl:
-                # Menggunakan parameter max_value=datetime.today() untuk mengunci tanggal masa depan
                 tanggal = st.date_input("Pilih Tanggal", st.session_state.last_date_harian, max_value=datetime.today(), format="DD/MM/YYYY")
                 nama_hari = HARI_INDO[tanggal.strftime("%A")]
                 
@@ -172,6 +165,16 @@ with menu1:
             with col2:
                 jumlah_str = st.text_input("Jumlah (Pcs)", placeholder="Ketik jumlah pcs (contoh: 500)")
                 
+            # Area Notifikasi (Tepat di atas tombol simpan)
+            notif_area_1 = st.empty()
+            if "notif_1" in st.session_state:
+                if st.session_state.notif_1_type == "success":
+                    notif_area_1.success(st.session_state.notif_1)
+                else:
+                    notif_area_1.error(st.session_state.notif_1)
+                del st.session_state.notif_1
+                del st.session_state.notif_1_type
+                
             submitted_input = st.form_submit_button("💾 Simpan Data Pekerjaan", type="primary", use_container_width=True)
             
             if submitted_input:
@@ -186,19 +189,23 @@ with menu1:
                         
                         baris_baru = pd.DataFrame([{"ID Data": id_data, "Hari": nama_hari, "Tanggal": tgl_str, "Nama": nama, "Pekerjaan": pekerjaan, "Upah": upah, "Jumlah": jumlah, "Total": total}])
                         st.session_state.df_gaji = pd.concat([st.session_state.df_gaji, baris_baru], ignore_index=True)
-                        
                         ws["gaji"].append_row([id_data, nama_hari, tgl_str, nama, pekerjaan, upah, jumlah, total])
                         
                         st.session_state.last_date_harian = tanggal
                         st.session_state.last_karyawan_harian = nama
                         
                         jml_fmt = f"{jumlah:,.0f}".replace(",", ".")
-                        st.session_state.notif_sukses_harian = f"Tersimpan Kilat! {jml_fmt} {pekerjaan} untuk {nama}."
+                        st.session_state.notif_1 = f"✅ Tersimpan Kilat! {jml_fmt} {pekerjaan} untuk {nama}."
+                        st.session_state.notif_1_type = "success"
                         st.rerun() 
                     except Exception as e:
-                        st.toast(f"Gagal simpan: {e}", icon="⚠️")
+                        st.session_state.notif_1 = f"⚠️ Gagal simpan: {e}"
+                        st.session_state.notif_1_type = "error"
+                        st.rerun()
                 else:
-                    st.toast("Gagal! Mohon pilih pekerjaan dan ketik jumlah yang valid.", icon="⚠️")
+                    st.session_state.notif_1 = "⚠️ Gagal! Mohon pilih pekerjaan dan ketik jumlah yang valid."
+                    st.session_state.notif_1_type = "error"
+                    st.rerun()
 
 # ==========================================
 # MENU 2: DATABASE & EDIT PEKERJAAN
@@ -231,6 +238,12 @@ with menu2:
                             key=f"editor_{tgl}_{hari}"
                         )
                         
+                        notif_key = f"notif_2_{tgl}_{hari}"
+                        notif_area_2 = st.empty()
+                        if notif_key in st.session_state:
+                            notif_area_2.success(st.session_state[notif_key])
+                            del st.session_state[notif_key]
+                        
                         if st.form_submit_button(f"💾 Simpan Perubahan Tanggal {tgl}", type="primary"):
                             df_harian_edit['Upah'] = df_harian_edit['Upah'].astype(str).str.replace("Rp", "").str.replace(".", "").str.strip()
                             df_harian_edit['Upah'] = pd.to_numeric(df_harian_edit['Upah'], errors='coerce').fillna(0)
@@ -245,12 +258,10 @@ with menu2:
                             df_final = pd.concat([df_sisa, df_harian_edit]).sort_values(by="Tanggal").reset_index(drop=True)
                             
                             st.session_state.df_gaji = df_final
-                            
                             ws["gaji"].clear()
                             ws["gaji"].update([df_final.columns.values.tolist()] + df_final.fillna("").values.tolist())
                             
-                            st.toast("Perubahan Berhasil Disimpan!", icon="✅")
-                            time.sleep(0.5)
+                            st.session_state[notif_key] = "✅ Perubahan Berhasil Disimpan!"
                             st.rerun()
         else:
             st.info(f"Tidak ada riwayat pekerjaan untuk {filter_nama}.")
@@ -262,11 +273,6 @@ with menu2:
 # ==========================================
 with menu3:
     st.header("Pencatatan Penambahan & Pengurangan")
-    
-    # Notifikasi Toast Pop-up
-    if "notif_sukses_kb" in st.session_state:
-        st.toast(st.session_state.notif_sukses_kb, icon="✅")
-        del st.session_state.notif_sukses_kb
 
     today_date_kb = datetime.today().date()
     if "last_date_kb" not in st.session_state or st.session_state.last_date_kb > today_date_kb:
@@ -279,7 +285,6 @@ with menu3:
         with st.form("form_kasbon", clear_on_submit=True):
             col_kb1, col_kb2, col_kb3 = st.columns(3)
             with col_kb1:
-                # Menggunakan parameter max_value=datetime.today()
                 tgl_kb = st.date_input("Tanggal Transaksi", st.session_state.last_date_kb, max_value=datetime.today(), format="DD/MM/YYYY")
             with col_kb2:
                 idx_kb = daftar_karyawan.index(st.session_state.last_karyawan_kb) if st.session_state.last_karyawan_kb in daftar_karyawan else 0
@@ -293,6 +298,15 @@ with menu3:
             with col_kb5:
                 nominal_str = st.text_input("Nominal (Rp)", placeholder="Ketik nominal (contoh: 50000)")
                 
+            notif_area_3 = st.empty()
+            if "notif_3" in st.session_state:
+                if st.session_state.notif_3_type == "success":
+                    notif_area_3.success(st.session_state.notif_3)
+                else:
+                    notif_area_3.error(st.session_state.notif_3)
+                del st.session_state.notif_3
+                del st.session_state.notif_3_type
+                
             if st.form_submit_button("💾 Simpan Data", type="primary", use_container_width=True):
                 nominal_kb = int(nominal_str.strip()) if nominal_str.strip().isdigit() else 0
                     
@@ -303,18 +317,22 @@ with menu3:
                         
                         baris_kb = pd.DataFrame([{"ID Kasbon": id_kb, "Tanggal": tgl_str, "Nama": nama_kb, "Tipe": tipe_kb, "Keterangan": ket_kb, "Nominal": nominal_kb}])
                         st.session_state.df_kasbon = pd.concat([st.session_state.df_kasbon, baris_kb], ignore_index=True)
-                        
                         ws["kasbon"].append_row([id_kb, tgl_str, nama_kb, tipe_kb, ket_kb, nominal_kb])
                         
                         st.session_state.last_date_kb = tgl_kb
                         st.session_state.last_karyawan_kb = nama_kb
                         
-                        st.session_state.notif_sukses_kb = "Berhasil menyimpan data!"
+                        st.session_state.notif_3 = "✅ Berhasil menyimpan data!"
+                        st.session_state.notif_3_type = "success"
                         st.rerun()
                     except Exception as e:
-                        st.toast(f"Gagal: {e}", icon="⚠️")
+                        st.session_state.notif_3 = f"⚠️ Gagal: {e}"
+                        st.session_state.notif_3_type = "error"
+                        st.rerun()
                 else:
-                    st.toast("Mohon isi keterangan dan nominal dengan benar.", icon="⚠️")
+                    st.session_state.notif_3 = "⚠️ Mohon isi keterangan dan nominal dengan benar."
+                    st.session_state.notif_3_type = "error"
+                    st.rerun()
 
 # ==========================================
 # MENU 4: CETAK SLIP GAJI
@@ -423,7 +441,17 @@ with menu5:
         with col_l2:
             nominal_lain_str = st.text_input("Nominal (Rp)", placeholder="Ketik nominal...")
             
+        notif_area_5 = st.empty()
+        if "notif_5" in st.session_state:
+            if st.session_state.notif_5_type == "success":
+                notif_area_5.success(st.session_state.notif_5)
+            else:
+                notif_area_5.error(st.session_state.notif_5)
+            del st.session_state.notif_5
+            del st.session_state.notif_5_type
+
         submitted_lain = st.form_submit_button("➕ Tambah Pengeluaran Lain", type="primary", use_container_width=True)
+        
         if submitted_lain:
             nominal_lain = int(nominal_lain_str.strip()) if nominal_lain_str.strip().isdigit() else 0
                 
@@ -432,13 +460,19 @@ with menu5:
                     id_lain = f"LAIN-{int(time.time())}"
                     baris_lain = pd.DataFrame([{"ID Lain": id_lain, "Keterangan": ket_lain, "Nominal": nominal_lain}])
                     st.session_state.df_pengeluaran = pd.concat([st.session_state.df_pengeluaran, baris_lain], ignore_index=True)
-                    
                     ws["pengeluaran"].append_row([id_lain, ket_lain, nominal_lain])
-                    st.toast(f"Berhasil menambahkan '{ket_lain}'!", icon="✅")
+                    
+                    st.session_state.notif_5 = f"✅ Berhasil menambahkan '{ket_lain}'!"
+                    st.session_state.notif_5_type = "success"
+                    st.rerun()
                 except Exception as e:
-                    st.toast(f"Gagal menyimpan: {e}", icon="⚠️")
+                    st.session_state.notif_5 = f"⚠️ Gagal menyimpan: {e}"
+                    st.session_state.notif_5_type = "error"
+                    st.rerun()
             else:
-                st.toast("Mohon isi dengan benar.", icon="⚠️")
+                st.session_state.notif_5 = "⚠️ Mohon isi dengan benar."
+                st.session_state.notif_5_type = "error"
+                st.rerun()
 
     if st.button("🖼️ Generate Gambar Resume", type="primary"):
         tarik_uang = int(tarik_uang_str.strip()) if tarik_uang_str.strip().isdigit() else 0
@@ -542,19 +576,22 @@ with menu6:
                 st.session_state.df_karyawan, 
                 num_rows="dynamic", 
                 use_container_width=True,
-                hide_index=True # Menghilangkan kolom nomor urut (0, 1, 2...)
+                hide_index=True 
             )
             
+            notif_area_6k = st.empty()
+            if "notif_6k" in st.session_state:
+                notif_area_6k.success(st.session_state.notif_6k)
+                del st.session_state.notif_6k
+                
             if st.form_submit_button("💾 Simpan Perubahan Karyawan", type="primary", use_container_width=True):
                 edited_karyawan = edited_karyawan[edited_karyawan['Nama Karyawan'].str.strip() != ""]
                 st.session_state.df_karyawan = edited_karyawan
                 
-                # Bulk Update langsung ke tab worksheet
                 ws["karyawan"].clear()
                 ws["karyawan"].update([edited_karyawan.columns.values.tolist()] + edited_karyawan.fillna("").values.tolist())
                 
-                st.toast("Berhasil Disimpan!", icon="✅")
-                time.sleep(0.5)
+                st.session_state.notif_6k = "✅ Berhasil Disimpan!"
                 st.rerun()
 
     with col_pekerjaan:
@@ -566,9 +603,14 @@ with menu6:
                 st.session_state.df_pekerjaan, 
                 num_rows="dynamic", 
                 use_container_width=True,
-                hide_index=True # Menghilangkan kolom nomor urut (0, 1, 2...)
+                hide_index=True 
             )
             
+            notif_area_6p = st.empty()
+            if "notif_6p" in st.session_state:
+                notif_area_6p.success(st.session_state.notif_6p)
+                del st.session_state.notif_6p
+                
             if st.form_submit_button("💾 Simpan Perubahan Pekerjaan", type="primary", use_container_width=True):
                 edited_pekerjaan = edited_pekerjaan[edited_pekerjaan['Jenis Pekerjaan'].str.strip() != ""]
                 st.session_state.df_pekerjaan = edited_pekerjaan
@@ -576,6 +618,5 @@ with menu6:
                 ws["pekerjaan"].clear()
                 ws["pekerjaan"].update([edited_pekerjaan.columns.values.tolist()] + edited_pekerjaan.fillna("").values.tolist())
                 
-                st.toast("Berhasil Disimpan!", icon="✅")
-                time.sleep(0.5)
+                st.session_state.notif_6p = "✅ Berhasil Disimpan!"
                 st.rerun()
