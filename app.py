@@ -402,7 +402,7 @@ with menu3:
                     st.rerun()
 
 # ==========================================
-# MENU 4: CETAK SLIP GAJI (SETENGAH SPASI & 1 SPASI KOSONG KETIKA BERALIH HARI)
+# MENU 4: CETAK SLIP GAJI (JUDUL CENTER DI POSISI MERAH, FONT 13)
 # ==========================================
 with menu4:
     st.header("Cetak & Unduh Slip Gaji")
@@ -435,7 +435,7 @@ with menu4:
                 
                 if len(df_filter_gaji) > 0 or len(df_filter_kb) > 0:
                     baris_slip = [
-                        ("SLIP GAJI", 11, "center"),
+                        ("SLIP GAJI", 13, "center"),
                         ("=================================", 6, "left"),
                         (f"Nama    : {nama_slip}", 9, "left"),
                         (f"Periode : {tgl_mulai_slip.strftime('%d/%m/%Y')} - {tgl_selesai_slip.strftime('%d/%m/%Y')}", 9, "left"),
@@ -501,7 +501,6 @@ with menu4:
                     max_w = 0
                     line_heights = []
                     for txt, sz, align in baris_slip:
-                        # Setengah spasi / jarak rapat (faktor 0.65 untuk detail pekerjaan, 0.4 untuk spasi kosong)
                         h_line = int(sz * scale * 0.65) if txt != "" else int(9 * scale * 0.4)
                         line_heights.append(h_line)
                         if font_path and txt != "":
