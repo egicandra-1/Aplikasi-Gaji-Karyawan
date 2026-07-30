@@ -28,14 +28,16 @@ st.markdown("""
         display: none !important;
     }
     
-    /* Animasi memudar otomatis untuk notifikasi menu lain */
+    /* Animasi memudar otomatis KHUSUS untuk notifikasi menu lain (bukan untuk resume kas) */
     @keyframes fadeOutAlert {
         0% { opacity: 1; }
         80% { opacity: 1; }
         100% { opacity: 0; visibility: hidden; }
     }
-    [data-testid="stAlert"] {
-        animation: fadeOutAlert 2.5s ease-out forwards;
+    
+    /* Pengecualian agar notifikasi di Laporan Resume Kas TIDAK Ikut Memudar */
+    div[data-testid="stVerticalBlock"] div[data-testid="stAlert"] {
+        animation: none !important;
     }
     </style>
     
@@ -513,12 +515,15 @@ with menu5:
     
     tarik_uang_str = st.text_input("💵 Total Penarikan Uang Cash (Rp)", placeholder="Ketik nominal (contoh: 5000000)")
     
+    # Notif Permanen yang tidak akan hilang dan selalu update secara instan
     if tarik_uang_str.strip():
         if tarik_uang_str.strip().isdigit():
             nominal_format = f"Rp {int(tarik_uang_str.strip()):,}".replace(",", ".")
             st.info(f"📌 Nominal terinput: **{nominal_format}**")
         else:
             st.error("⚠️ Mohon ketik nominal penarikan berupa angka yang valid.")
+    else:
+        st.info("📌 Nominal terinput: **Rp 0**")
     
     st.markdown("---")
     st.subheader("🛒 Pencatatan Pengeluaran Lain-Lain")
