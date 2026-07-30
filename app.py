@@ -36,8 +36,7 @@ def init_connection():
 client = init_connection()
 spreadsheet = client.open("Database_Aplikasi_Gaji")
 
-# --- FUNGSI BANTU GOOGLE SHEETS (DENGAN CACHE) ---
-@st.cache_data(ttl=600)
+# --- FUNGSI BANTU GOOGLE SHEETS ---
 def load_data_from_sheet(nama_sheet, kolom_default):
     try:
         worksheet = spreadsheet.worksheet(nama_sheet)
@@ -67,7 +66,6 @@ def save_data_to_sheet(nama_sheet, df):
     worksheet.clear()
     data_to_write = [df.columns.values.tolist()] + df.fillna("").values.tolist()
     worksheet.update(data_to_write)
-    load_data_from_sheet.clear()
 
 # --- NAMA TAB SHEET GOOGLE SHEETS ---
 SHEET_GAJI = "Data_Gaji"
@@ -76,36 +74,27 @@ SHEET_PENGELUARAN = "Data_Pengeluaran_Lain"
 SHEET_KARYAWAN = "Master_Karyawan"
 SHEET_PEKERJAAN = "Master_Pekerjaan"
 
-# --- INISIALISASI & MIGRASI DATA SHEET (HANYA 1X SAAT PERTAMA DIBUKA) ---
-if "db_initialized" not in st.session_state:
-    df_gaji_cek = load_data_from_sheet(SHEET_GAJI, ["ID Data", "Hari", "Tanggal", "Nama", "Pekerjaan", "Upah", "Jumlah", "Total"])
-    if "Harga" in df_gaji_cek.columns:
-        df_gaji_cek = df_gaji_cek.rename(columns={"Harga": "Upah"})
-    if "Hari" not in df_gaji_cek.columns and len(df_gaji_cek) > 0:
-        df_gaji_cek["Hari"] = pd.to_datetime(df_gaji_cek["Tanggal"]).dt.strftime('%A').map(HARI_INDO)
-    save_data_to_sheet(SHEET_GAJI, df_gaji_cek)
+# --- INISIALISASI SESSION STATE UNTUK KECEPATAN INSTAN ---
+if "master_karyawan" not in st.session_state:
+    df_kar = load_data_from_sheet(SHEET_KARYAWAN, ["Nama Karyawan"])
+    if len(df_kar) == 0:
+        df_kar = pd.DataFrame({"Nama Karyawan": ["Teh Eva", "Bi Nyai", "Radi", "Ula", "Sintia", "Mang Ade", "Mang Koko", "Yoga", "Samsul"]})
+        save_data_to_sheet(SHEET_KARYAWAN, df_kar)
+    st.session_state.master_karyawan = df_kar
 
-    load_data_from_sheet(SHEET_KASBON, ["ID Kasbon", "Tanggal", "Nama", "Tipe", "Keterangan", "Nominal"])
-    load_data_from_sheet(SHEET_PENGELUARAN, ["ID Lain", "Keterangan", "Nominal"])
-
-    df_kar_cek = load_data_from_sheet(SHEET_KARYAWAN, ["Nama Karyawan"])
-    if len(df_kar_cek) == 0:
-        df_kar_cek = pd.DataFrame({"Nama Karyawan": ["Teh Eva", "Bi Nyai", "Radi", "Ula", "Sintia", "Mang Ade", "Mang Koko", "Yoga", "Samsul"]})
-        save_data_to_sheet(SHEET_KARYAWAN, df_kar_cek)
-
-    df_pek_cek = load_data_from_sheet(SHEET_PEKERJAAN, ["Jenis Pekerjaan", "Harga Per Pcs"])
-    if len(df_pek_cek) == 0:
-        df_pek_cek = pd.DataFrame({
+if "master_pekerjaan" not in st.session_state:
+    df_pek = load_data_from_sheet(SHEET_PEKERJAAN, ["Jenis Pekerjaan", "Harga Per Pcs"])
+    if len(df_pek) == 0:
+        df_pek = pd.DataFrame({
             "Jenis Pekerjaan": ["Bungkus Patung", "Packing Styrofoam", "Bungkus Cat"],
             "Harga Per Pcs": [150, 400, 15]
         })
-        save_data_to_sheet(SHEET_PEKERJAAN, df_pek_cek)
-        
-    st.session_state.db_initialized = True
+        save_data_to_sheet(SHEET_PEKERJAAN, df_pek)
+    st.session_state.master_pekerjaan = df_pek
 
-# --- MEMBACA MASTER DATA ---
-df_karyawan = load_data_from_sheet(SHEET_KARYAWAN, ["Nama Karyawan"])
-df_pekerjaan = load_data_from_sheet(SHEET_PEKERJAAN, ["Jenis Pekerjaan", "Harga Per Pcs"])
+# Ambil data langsung dari memori lokal (Super Cepat tanpa loading)
+df_karyawan = st.session_state.master_karyawan
+df_pekerjaan = st.session_state.master_pekerjaan
 daftar_karyawan = df_karyawan["Nama Karyawan"].dropna().tolist() if not df_karyawan.empty else []
 daftar_pekerjaan = df_pekerjaan["Jenis Pekerjaan"].dropna().tolist() if not df_pekerjaan.empty else []
 tarif_pekerjaan = dict(zip(df_pekerjaan["Jenis Pekerjaan"], pd.to_numeric(df_pekerjaan["Harga Per Pcs"], errors='coerce').fillna(0))) if not df_pekerjaan.empty else {}
@@ -121,7 +110,7 @@ menu1, menu2, menu3, menu4, menu5, menu6 = st.tabs([
 ])
 
 # ==========================================
-# MENU 1: INPUT HARIAN (MENGGUNAKAN FORM AMAN)
+# MENU 1: INPUT HARIAN
 # ==========================================
 with menu1:
     st.header("Input Pekerjaan Harian")
@@ -142,37 +131,32 @@ with menu1:
 
             st.markdown("---")
             st.markdown("### ⚡ Panel Input Harian")
-            st.caption("Ketik jumlah pcs dengan tenang, lalu klik tombol Simpan di bawah.")
             
             col1, col2 = st.columns([2, 1])
             with col1:
                 opsi_kerja = ["-"] + daftar_pekerjaan
                 pekerjaan = st.selectbox("Pilih Pekerjaan", opsi_kerja)
             with col2:
-                jumlah = st.number_input("Jumlah (Pcs)", min_value=0, step=1, value=0, placeholder="Ketik jumlah pcs...")
+                # Menggunakan value=None agar tidak muncul angka 0 di depan
+                jumlah = st.number_input("Jumlah (Pcs)", min_value=0, step=1, value=None, placeholder="Ketik jumlah pcs...")
                 
             submitted_input = st.form_submit_button("💾 Simpan Data Pekerjaan", type="primary", use_container_width=True)
             
             if submitted_input:
-                if pekerjaan != "-" and jumlah > 0:
+                if pekerjaan != "-" and jumlah is not None and jumlah > 0:
                     upah = tarif_pekerjaan[pekerjaan]
                     total = jumlah * upah
-                    
                     try:
                         worksheet = spreadsheet.worksheet(SHEET_GAJI)
                         id_data = f"ID-{int(time.time())}"
                         tgl_str = tanggal.strftime("%Y-%m-%d")
                         worksheet.append_row([id_data, nama_hari, tgl_str, nama, pekerjaan, upah, jumlah, total])
-                        load_data_from_sheet.clear()
-                        
                         jml_fmt = f"{jumlah:,.0f}".replace(",", ".")
                         st.success(f"✅ Berhasil menyimpan! {jml_fmt} {pekerjaan} untuk {nama}.")
                     except Exception as e:
-                        st.error(f"⚠️ Gagal menyimpan ke server: {e}")
-                elif pekerjaan == "-":
-                    st.error("⚠️ Gagal simpan! Anda belum memilih Jenis Pekerjaan.")
+                        st.error(f"⚠️ Gagal: {e}")
                 else:
-                    st.error("⚠️ Gagal simpan! Jumlah pcs harus lebih dari 0.")
+                    st.error("⚠️ Mohon pilih pekerjaan dan isi jumlah dengan benar.")
 
 # ==========================================
 # MENU 2: DATABASE & EDIT PEKERJAAN
@@ -185,43 +169,29 @@ with menu2:
     
     if len(df_gaji) > 0:
         filter_nama = st.selectbox("🔍 Tampilkan data khusus untuk:", ["Semua Karyawan"] + daftar_karyawan, key="filter_db_kerja")
-        
-        if filter_nama == "Semua Karyawan":
-            df_tampil = df_gaji
-        else:
-            df_tampil = df_gaji[df_gaji['Nama'] == filter_nama]
+        df_tampil = df_gaji if filter_nama == "Semua Karyawan" else df_gaji[df_gaji['Nama'] == filter_nama]
             
         if len(df_tampil) > 0:
             df_tampil['Urutan_Hari'] = df_tampil['Hari'].map(URUTAN_HARI)
             df_tampil = df_tampil.sort_values(by=["Tanggal", "Urutan_Hari"]).drop(columns=["Urutan_Hari"])
-            
             daftar_tanggal = df_tampil[['Tanggal', 'Hari']].drop_duplicates().values
             
             for tgl, hari in daftar_tanggal:
                 with st.expander(f"📅 Hari **{hari}**, Tanggal **{tgl}**", expanded=True):
                     df_harian = df_tampil[(df_tampil['Tanggal'] == tgl) & (df_tampil['Hari'] == hari)]
-                    
                     kolom_tampil = ["Hari", "Tanggal", "Nama", "Pekerjaan", "Upah", "Jumlah", "Total"]
                     df_tabel_bersih = df_harian[kolom_tampil].copy()
                     
                     df_tabel_bersih['Upah'] = pd.to_numeric(df_tabel_bersih['Upah'], errors='coerce').fillna(0).apply(lambda x: f"Rp {x:,.0f}".replace(",", "."))
                     df_tabel_bersih['Total'] = pd.to_numeric(df_tabel_bersih['Total'], errors='coerce').fillna(0).apply(lambda x: f"Rp {x:,.0f}".replace(",", "."))
-                    
                     st.dataframe(df_tabel_bersih, use_container_width=True)
-        else:
-            st.info(f"Tidak ada riwayat pekerjaan untuk {filter_nama}.")
-    else:
-        st.info("Belum ada data pekerjaan yang tersimpan.")
 
 # ==========================================
 # MENU 3: PENAMBAHAN & PENGURANGAN
 # ==========================================
 with menu3:
     st.header("Pencatatan Penambahan & Pengurangan")
-    
-    if len(daftar_karyawan) == 0:
-        st.warning("⚠️ Data Karyawan kosong. Silakan isi terlebih dahulu di Menu 6.")
-    else:
+    if len(daftar_karyawan) > 0:
         with st.form("form_kasbon", clear_on_submit=True):
             col_kb1, col_kb2, col_kb3 = st.columns(3)
             with col_kb1:
@@ -233,25 +203,18 @@ with menu3:
                 
             col_kb4, col_kb5 = st.columns([2, 1])
             with col_kb4:
-                ket_kb = st.text_input("Keterangan (Contoh: Lembur / Kasbon beras)")
+                ket_kb = st.text_input("Keterangan")
             with col_kb5:
-                nominal_kb = st.number_input("Nominal (Rp)", min_value=0, step=5000, value=0, placeholder="Ketik nominal...")
+                nominal_kb = st.number_input("Nominal (Rp)", min_value=0, step=5000, value=None, placeholder="Ketik nominal...")
                 
-            submitted_kb = st.form_submit_button("💾 Simpan Data", type="primary", use_container_width=True)
-            if submitted_kb:
-                if nominal_kb > 0 and ket_kb.strip() != "":
+            if st.form_submit_button("💾 Simpan Data", type="primary", use_container_width=True):
+                if nominal_kb is not None and nominal_kb > 0 and ket_kb.strip() != "":
                     try:
                         worksheet = spreadsheet.worksheet(SHEET_KASBON)
-                        id_kb = f"KB-{int(time.time())}"
-                        tgl_str = tgl_kb.strftime("%Y-%m-%d")
-                        worksheet.append_row([id_kb, tgl_str, nama_kb, tipe_kb, ket_kb, nominal_kb])
-                        load_data_from_sheet.clear()
-                        
-                        st.success(f"✅ Berhasil menyimpan {tipe_kb} untuk {nama_kb} sebesar Rp {nominal_kb:,.0f}!".replace(",", "."))
+                        worksheet.append_row([f"KB-{int(time.time())}", tgl_kb.strftime("%Y-%m-%d"), nama_kb, tipe_kb, ket_kb, nominal_kb])
+                        st.success("✅ Berhasil menyimpan data!")
                     except Exception as e:
-                        st.error(f"⚠️ Gagal simpan ke server: {e}")
-                else:
-                    st.error("⚠️ Gagal simpan! Mohon isi keterangan dan nominal dengan benar.")
+                        st.error(f"Gagal: {e}")
 
 # ==========================================
 # MENU 4: CETAK SLIP GAJI
@@ -270,404 +233,136 @@ with menu4:
         with col_b:
             tgl_selesai = st.date_input("Sampai Tanggal", datetime.today(), format="DD/MM/YYYY", key="tgl_selesai_slip")
             
-        opsi_pilih_slip = ["Semua Karyawan"] + daftar_karyawan
-        nama_slip_pilihan = st.selectbox("Pilih Nama Karyawan", opsi_pilih_slip, key="slip_nama")
+        nama_slip_pilihan = st.selectbox("Pilih Nama Karyawan", ["Semua Karyawan"] + daftar_karyawan, key="slip_nama")
         
         if st.button("🖨️ Buat Slip Gaji (4K Ultra HD)", type="primary"):
             df_gaji['Tanggal'] = pd.to_datetime(df_gaji['Tanggal']).dt.date
-            
-            if nama_slip_pilihan == "Semua Karyawan":
-                target_karyawan = daftar_karyawan
-            else:
-                target_karyawan = [nama_slip_pilihan]
-                
-            berhasil_cetak_count = 0
+            target_karyawan = daftar_karyawan if nama_slip_pilihan == "Semua Karyawan" else [nama_slip_pilihan]
             
             for nama_slip in target_karyawan:
                 df_filter_gaji = df_gaji[(df_gaji['Nama'] == nama_slip) & (df_gaji['Tanggal'] >= tgl_mulai) & (df_gaji['Tanggal'] <= tgl_selesai)]
-                
-                if len(df_kasbon) > 0:
-                    df_kasbon['Tanggal'] = pd.to_datetime(df_kasbon['Tanggal']).dt.date
-                    df_filter_kb = df_kasbon[(df_kasbon['Nama'] == nama_slip) & (df_kasbon['Tanggal'] >= tgl_mulai) & (df_kasbon['Tanggal'] <= tgl_selesai)]
-                else:
-                    df_filter_kb = pd.DataFrame()
+                df_filter_kb = df_kasbon[(df_kasbon['Nama'] == nama_slip) & (pd.to_datetime(df_kasbon['Tanggal']).dt.date >= tgl_mulai) & (pd.to_datetime(df_kasbon['Tanggal']).dt.date <= tgl_selesai)] if len(df_kasbon) > 0 else pd.DataFrame()
                 
                 if len(df_filter_gaji) > 0 or len(df_filter_kb) > 0:
-                    berhasil_cetak_count += 1
-                    baris_gambar_info = []
+                    baris_gambar_info = [
+                        ("       SLIP GAJI", True),
+                        ("================================", False),
+                        (f"Nama    : {nama_slip}", True),
+                        (f"Periode : {tgl_mulai.strftime('%d/%m/%Y')} - {tgl_selesai.strftime('%d/%m/%Y')}", True),
+                        ("================================", False),
+                        ("", False)
+                    ]
+                    total_upah = 0
+                    for tgl, data_harian in df_filter_gaji.groupby('Tanggal'):
+                        baris_gambar_info.append((f"Hari/Tgl: {HARI_INDO.get(tgl.strftime('%A'), '')}, {tgl.strftime('%d/%m/%Y')}", True))
+                        sub = 0
+                        for _, row in data_harian.iterrows():
+                            j, u, t = float(row['Jumlah']), float(row['Upah']), float(row['Total'])
+                            baris_gambar_info.append((f"- {row['Pekerjaan']}", False))
+                            baris_gambar_info.append((f"  {j:,.0f} pcs x Rp{u:,.0f} = Rp{t:,.0f}".replace(",", "."), False))
+                            sub += t
+                        baris_gambar_info.append((f"Sub-total: Rp{sub:,.0f}".replace(",", "."), False))
+                        baris_gambar_info.append(("", False))
+                        total_upah += sub
                     
-                    baris_gambar_info.append(("       SLIP GAJI", True))
-                    baris_gambar_info.append(("================================", False))
-                    baris_gambar_info.append((f"Nama    : {nama_slip}", True))
-                    baris_gambar_info.append((f"Periode : {tgl_mulai.strftime('%d/%m/%Y')} - {tgl_selesai.strftime('%d/%m/%Y')}", True))
-                    baris_gambar_info.append(("================================", False))
-                    baris_gambar_info.append(("", False))
-                    
-                    total_pendapatan_upah = 0
-                    if len(df_filter_gaji) > 0:
-                        grup_tanggal = df_filter_gaji.groupby('Tanggal')
-                        for tgl, data_harian in grup_tanggal:
-                            hari_slip = HARI_INDO.get(tgl.strftime("%A"), "")
-                            tgl_str = f"Hari/Tgl: {hari_slip}, {tgl.strftime('%d/%m/%Y')}"
-                            baris_gambar_info.append((tgl_str, True))
-                            
-                            subtotal = 0
-                            for _, row in data_harian.iterrows():
-                                jml_val = float(row['Jumlah']) if pd.notnull(row['Jumlah']) else 0
-                                upah_val = float(row['Upah']) if pd.notnull(row['Upah']) else 0
-                                tot_val = float(row['Total']) if pd.notnull(row['Total']) else (jml_val * upah_val)
-                                
-                                jml_format = f"{jml_val:,.0f}".replace(",", ".")
-                                upah_format = f"{upah_val:,.0f}".replace(",", ".")
-                                total_format = f"{tot_val:,.0f}".replace(",", ".")
-                                
-                                baris_gambar_info.append((f"- {row['Pekerjaan']}", False))
-                                baris_gambar_info.append((f"  {jml_format} pcs x Rp{upah_format} = Rp{total_format}", False))
-                                subtotal += tot_val
-                            
-                            subtotal_format = f"{subtotal:,.0f}".replace(",", ".")
-                            baris_gambar_info.append((f"Sub-total: Rp{subtotal_format}", False))
-                            baris_gambar_info.append(("", False))
-                            total_pendapatan_upah += subtotal
-                    
-                    total_tambah = 0
-                    total_kurang = 0
-                    
+                    tot_tambah, tot_kurang = 0, 0
                     if len(df_filter_kb) > 0:
                         baris_gambar_info.append(("--- CATATAN TAMBAHAN ---", True))
-                        for _, row_kb in df_filter_kb.iterrows():
-                            nom_kb = float(row_kb['Nominal']) if pd.notnull(row_kb['Nominal']) else 0
-                            nominal_fmt = f"Rp {nom_kb:,.0f}".replace(",", ".")
-                            if row_kb['Tipe'] == "Penambahan":
-                                baris_gambar_info.append((f"+ {row_kb['Keterangan']}", False))
-                                baris_gambar_info.append((f"  ({nominal_fmt})", False))
-                                total_tambah += nom_kb
-                            else:
-                                baris_gambar_info.append((f"- {row_kb['Keterangan']}", False))
-                                baris_gambar_info.append((f"  ({nominal_fmt})", False))
-                                total_kurang += nom_kb
+                        for _, rkb in df_filter_kb.iterrows():
+                            nom = float(rkb['Nominal'])
+                            sign = "+" if rkb['Tipe'] == "Penambahan" else "-"
+                            baris_gambar_info.append((f"{sign} {rkb['Keterangan']} (Rp {nom:,.0f})".replace(",", "."), False))
+                            if rkb['Tipe'] == "Penambahan": tot_tambah += nom
+                            else: tot_kurang += nom
                         baris_gambar_info.append(("", False))
                     
-                    total_gaji_bersih = total_pendapatan_upah + total_tambah - total_kurang
-                    total_semua_format = f"{total_gaji_bersih:,.0f}".replace(",", ".")
+                    total_bersih = total_upah + tot_tambah - tot_kurang
+                    baris_gambar_info.append(("================================", False))
+                    baris_gambar_info.append((f"TOTAL GAJI DITERIMA: Rp {total_bersih:,.0f}".replace(",", "."), True))
+                    baris_gambar_info.append(("================================", False))
                     
-                    baris_gambar_info.append(("================================", False))
-                    total_str = f"TOTAL GAJI DITERIMA: Rp {total_semua_format}"
-                    baris_gambar_info.append((total_str, True))
-                    baris_gambar_info.append(("================================", False))
-
                     scale = 4
-                    base_width = 420
-                    base_line_height = 20
-                    base_margin = 20
-                    
-                    img_w = base_width * scale
-                    img_h = ((len(baris_gambar_info) * base_line_height) + (base_margin * 2)) * scale
-                    
-                    img = Image.new('RGB', (img_w, img_h), color=(255, 255, 255))
+                    img = Image.new('RGB', (420 * scale, ((len(baris_gambar_info) * 20) + 40) * scale), color=(255, 255, 255))
                     draw = ImageDraw.Draw(img)
+                    font = ImageFont.load_default()
                     
-                    try:
-                        font_size = 14 * scale
-                        font_regular = ImageFont.truetype("cour.ttf", font_size) 
-                        font_bold = ImageFont.truetype("courbd.ttf", font_size) 
-                    except:
-                        font_regular = ImageFont.load_default()
-                        font_bold = font_regular
-                        
-                    y_pos = base_margin * scale
-                    line_spacing = base_line_height * scale
+                    y = 20 * scale
+                    for txt, is_b in baris_gambar_info:
+                        draw.text((20 * scale, y), txt, font=font, fill=(0, 0, 0))
+                        y += 20 * scale
                     
-                    for text_line, is_bold in baris_gambar_info:
-                        pilih_font = font_bold if is_bold else font_regular
-                        draw.text((base_margin * scale, y_pos), text_line, font=pilih_font, fill=(0, 0, 0))
-                        y_pos += line_spacing
-                        
                     buf = io.BytesIO()
                     img.save(buf, format="JPEG", quality=95)
                     byte_im = buf.getvalue()
                     
-                    st.markdown("---")
                     st.subheader(f"📄 Slip Gaji: {nama_slip}")
                     st.image(byte_im, width=400)
-                    
-                    caption_teks = f"Slip Gaji {nama_slip}\nPeriode: {tgl_mulai.strftime('%d/%m/%Y')} - {tgl_selesai.strftime('%d/%m/%Y')}\nTotal Diterima: Rp {total_semua_format}"
-                    st.text_area("📋 Salin Caption Singkat:", value=caption_teks, height=80, key=f"caption_{nama_slip}_{time.time()}")
-                    
-                    st.download_button(
-                        label=f"📥 Unduh Foto Slip - {nama_slip} (Format 4K JPG)",
-                        data=byte_im,
-                        file_name=f"Slip_Gaji_4K_{nama_slip}_{tgl_selesai.strftime('%d%m%Y')}.jpg",
-                        mime="image/jpeg",
-                        key=f"dl_slip_{nama_slip}_{time.time()}"
-                    )
-            
-            if berhasil_cetak_count == 0:
-                st.warning("⚠️ Tidak ada data pekerjaan atau catatan untuk karyawan pada periode tersebut.")
-    else:
-        st.info("Belum ada data yang bisa dicetak.")
+                    st.download_button(f"📥 Unduh Slip - {nama_slip}", data=byte_im, file_name=f"Slip_{nama_slip}.jpg", mime="image/jpeg", key=f"dl_{nama_slip}")
 
 # ==========================================
 # MENU 5: LAPORAN RESUME KAS
 # ==========================================
 with menu5:
-    st.header("📊 Laporan Resume Kas Mingguan/Periode")
-    
-    df_gaji = load_data_from_sheet(SHEET_GAJI, ["ID Data", "Hari", "Tanggal", "Nama", "Pekerjaan", "Upah", "Jumlah", "Total"])
-    if "Harga" in df_gaji.columns:
-        df_gaji = df_gaji.rename(columns={"Harga": "Upah"})
-    df_kasbon = load_data_from_sheet(SHEET_KASBON, ["ID Kasbon", "Tanggal", "Nama", "Tipe", "Keterangan", "Nominal"])
-    df_lain_all = load_data_from_sheet(SHEET_PENGELUARAN, ["ID Lain", "Keterangan", "Nominal"])
-    
+    st.header("📊 Laporan Resume Kas")
     col_r1, col_r2 = st.columns(2)
-    with col_r1:
-        tgl_mulai_res = st.date_input("Dari Tanggal", datetime.today(), format="DD/MM/YYYY", key="res_mulai")
-    with col_r2:
-        tgl_selesai_res = st.date_input("Sampai Tanggal", datetime.today(), format="DD/MM/YYYY", key="res_selesai")
-        
-    tarik_uang = st.number_input("💵 Total Penarikan Uang Cash (Rp)", min_value=0, step=100000, value=0, placeholder="Ketik nominal tarikan uang...")
-    
-    st.markdown("---")
-    st.subheader("🛒 Pencatatan Pengeluaran Lain-Lain")
-    
-    with st.form("form_pengeluaran_lain", clear_on_submit=True):
-        col_l1, col_l2 = st.columns([2, 1])
-        with col_l1:
-            ket_lain = st.text_input("Keterangan Pengeluaran")
-        with col_l2:
-            nominal_lain = st.number_input("Nominal (Rp)", min_value=0, step=5000, value=0, placeholder="Ketik nominal...")
-            
-        submitted_lain = st.form_submit_button("➕ Tambah Pengeluaran Lain", type="primary", use_container_width=True)
-        if submitted_lain:
-            if nominal_lain > 0 and ket_lain.strip() != "":
-                try:
-                    worksheet = spreadsheet.worksheet(SHEET_PENGELUARAN)
-                    id_lain = f"LAIN-{int(time.time())}"
-                    worksheet.append_row([id_lain, ket_lain, nominal_lain])
-                    load_data_from_sheet.clear()
-                    
-                    st.success(f"Berhasil menambahkan '{ket_lain}' sebesar Rp {nominal_lain:,.0f}!".replace(",", "."))
-                except Exception as e:
-                    st.warning(f"⚠️ Gagal menyimpan ke server: {e}")
-            else:
-                st.warning("⚠️ Mohon isi keterangan dan nominal pengeluaran dengan benar.")
-
-    if st.button("🖼️ Generate Gambar Resume", type="primary"):
-        df_gaji['Tanggal'] = pd.to_datetime(df_gaji['Tanggal']).dt.date
-        df_f_gaji = df_gaji[(df_gaji['Tanggal'] >= tgl_mulai_res) & (df_gaji['Tanggal'] <= tgl_selesai_res)]
-        
-        if len(df_kasbon) > 0:
-            df_kasbon['Tanggal'] = pd.to_datetime(df_kasbon['Tanggal']).dt.date
-            df_f_kb = df_kasbon[(df_kasbon['Tanggal'] >= tgl_mulai_res) & (df_kasbon['Tanggal'] <= tgl_selesai_res)]
-        else:
-            df_f_kb = pd.DataFrame()
-            
-        rekap_gaji = {k: 0 for k in daftar_karyawan}
-        
-        if len(df_f_gaji) > 0:
-            grup_nama = df_f_gaji.groupby('Nama')
-            for nama, df_n in grup_nama:
-                tot_sum = pd.to_numeric(df_n['Total'], errors='coerce').fillna(0).sum()
-                if nama in rekap_gaji:
-                    rekap_gaji[nama] += tot_sum
-                
-        if len(df_f_kb) > 0:
-            for _, row_kb in df_f_kb.iterrows():
-                nama = row_kb['Nama']
-                nom_kb = float(row_kb['Nominal']) if pd.notnull(row_kb['Nominal']) else 0
-                if nama in rekap_gaji:
-                    if row_kb['Tipe'] == "Penambahan":
-                        rekap_gaji[nama] += nom_kb
-                    else:
-                        rekap_gaji[nama] -= nom_kb
-                        
-        total_gaji_semua = sum(rekap_gaji.values())
-        total_pengeluaran_lain = pd.to_numeric(df_lain_all['Nominal'], errors='coerce').fillna(0).sum() if len(df_lain_all) > 0 else 0
-        total_pengeluaran_keseluruhan = total_gaji_semua + total_pengeluaran_lain
-        sisa_uang = tarik_uang - total_pengeluaran_keseluruhan
-        
-        scale = 4
-        w = 460 * scale
-        
-        base_h = 350
-        row_h = 24
-        h = (base_h + (len(daftar_karyawan) * row_h) + (len(df_lain_all) * row_h)) * scale
-        
-        img = Image.new('RGB', (w, h), color=(255, 255, 255))
-        draw = ImageDraw.Draw(img)
-        
-        try:
-            f_title = ImageFont.truetype("courbd.ttf", 15 * scale)
-            f_bold = ImageFont.truetype("courbd.ttf", 11 * scale)
-            f_reg = ImageFont.truetype("cour.ttf", 11 * scale)
-        except:
-            f_title = ImageFont.load_default()
-            f_bold = f_title
-            f_reg = f_title
-            
-        margin = 20 * scale
-        y = margin
-        
-        draw.text((margin, y), "LAPORAN RESUME KAS & GAJI", fill=(0, 0, 0), font=f_title)
-        y += 22 * scale
-        periode_str = f"Periode: {tgl_mulai_res.strftime('%d/%m/%Y')} s/d {tgl_selesai_res.strftime('%d/%m/%Y')}"
-        draw.text((margin, y), periode_str, fill=(80, 80, 80), font=f_bold)
-        y += 25 * scale
-        
-        draw.line([(margin, y), (w - margin, y)], fill=(0, 0, 0), width=2 * scale)
-        y += 15 * scale
-        
-        draw.text((margin, y), "A. RINCIAN GAJI KARYAWAN", fill=(0, 0, 0), font=f_bold)
-        y += 20 * scale
-        
-        table_width = w - (margin * 2)
-        col_nama_w = int(table_width * 0.6)
-        
-        draw.rectangle([margin, y, margin + table_width, y + 22 * scale], fill=(230, 230, 230), outline=(0, 0, 0))
-        draw.text((margin + 8 * scale, y + 4 * scale), "NAMA KARYAWAN", fill=(0, 0, 0), font=f_bold)
-        draw.text((margin + col_nama_w + 8 * scale, y + 4 * scale), "JUMLAH (Rp)", fill=(0, 0, 0), font=f_bold)
-        y += 22 * scale
-        
-        for k in daftar_karyawan:
-            val = rekap_gaji.get(k, 0)
-            val_fmt = f"{val:,.0f}".replace(",", ".")
-            draw.rectangle([margin, y, margin + table_width, y + 20 * scale], outline=(0, 0, 0))
-            draw.text((margin + 8 * scale, y + 3 * scale), k, fill=(0, 0, 0), font=f_reg)
-            draw.text((margin + col_nama_w + 8 * scale, y + 3 * scale), val_fmt, fill=(0, 0, 0), font=f_reg)
-            y += 20 * scale
-            
-        draw.rectangle([margin, y, margin + table_width, y + 22 * scale], fill=(240, 240, 240), outline=(0, 0, 0))
-        draw.text((margin + 8 * scale, y + 4 * scale), "TOTAL GAJI KARYAWAN", fill=(0, 0, 0), font=f_bold)
-        tot_gaji_fmt = f"{total_gaji_semua:,.0f}".replace(",", ".")
-        draw.text((margin + col_nama_w + 8 * scale, y + 4 * scale), tot_gaji_fmt, fill=(0, 0, 0), font=f_bold)
-        y += 30 * scale
-        
-        draw.text((margin, y), "B. PENGELUARAN LAIN-LAIN", fill=(0, 0, 0), font=f_bold)
-        y += 20 * scale
-        
-        draw.rectangle([margin, y, margin + table_width, y + 22 * scale], fill=(230, 230, 230), outline=(0, 0, 0))
-        draw.text((margin + 8 * scale, y + 4 * scale), "KETERANGAN", fill=(0, 0, 0), font=f_bold)
-        draw.text((margin + col_nama_w + 8 * scale, y + 4 * scale), "JUMLAH (Rp)", fill=(0, 0, 0), font=f_bold)
-        y += 22 * scale
-        
-        if len(df_lain_all) > 0:
-            for _, row_l in df_lain_all.iterrows():
-                ket = str(row_l['Keterangan'])
-                nom = float(row_l['Nominal']) if pd.notnull(row_l['Nominal']) else 0
-                nom_fmt = f"{nom:,.0f}".replace(",", ".")
-                draw.rectangle([margin, y, margin + table_width, y + 20 * scale], outline=(0, 0, 0))
-                draw.text((margin + 8 * scale, y + 3 * scale), ket, fill=(0, 0, 0), font=f_reg)
-                draw.text((margin + col_nama_w + 8 * scale, y + 3 * scale), nom_fmt, fill=(0, 0, 0), font=f_reg)
-                y += 20 * scale
-        else:
-            draw.rectangle([margin, y, margin + table_width, y + 20 * scale], outline=(0, 0, 0))
-            draw.text((margin + 8 * scale, y + 3 * scale), "(Tidak ada pengeluaran lain)", fill=(120, 120, 120), font=f_reg)
-            draw.text((margin + col_nama_w + 8 * scale, y + 3 * scale), "0", fill=(120, 120, 120), font=f_reg)
-            y += 20 * scale
-            
-        draw.rectangle([margin, y, margin + table_width, y + 22 * scale], fill=(240, 240, 240), outline=(0, 0, 0))
-        draw.text((margin + 8 * scale, y + 4 * scale), "TOTAL PENGELUARAN LAIN", fill=(0, 0, 0), font=f_bold)
-        tot_lain_fmt = f"{total_pengeluaran_lain:,.0f}".replace(",", ".")
-        draw.text((margin + col_nama_w + 8 * scale, y + 4 * scale), tot_lain_fmt, fill=(0, 0, 0), font=f_bold)
-        y += 30 * scale
-        
-        draw.text((margin, y), "C. RINGKASAN KAS", fill=(0, 0, 0), font=f_bold)
-        y += 20 * scale
-        
-        ringkasan_data = [
-            ("Total Penarikan Uang Cash", f"Rp {tarik_uang:,.0f}".replace(",", ".")),
-            ("Total Pengeluaran Keseluruhan", f"Rp {total_pengeluaran_keseluruhan:,.0f}".replace(",", ".")),
-            ("SISA SALDO KAS", f"Rp {sisa_uang:,.0f}".replace(",", "."))
-        ]
-        
-        for idx_r, (lbl, val_r) in enumerate(ringkasan_data):
-            is_last = (idx_r == len(ringkasan_data) - 1)
-            bg_col = (210, 230, 250) if is_last else (255, 255, 255)
-            draw.rectangle([margin, y, margin + table_width, y + 24 * scale], fill=bg_col, outline=(0, 0, 0))
-            draw.text((margin + 8 * scale, y + 5 * scale), lbl, fill=(0, 0, 0), font=f_bold)
-            draw.text((margin + col_nama_w - 20 * scale, y + 5 * scale), val_r, fill=(0, 0, 0), font=f_bold)
-            y += 24 * scale
-            
-        buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=95)
-        byte_resume = buf.getvalue()
-        
-        st.markdown("---")
-        st.subheader("👁️ Ringkasan Akhir")
-        st.image(byte_resume, width=460)
-        
-        st.download_button(
-            label="📥 Unduh Resume (Format 4K JPG)",
-            data=byte_resume,
-            file_name=f"Resume_Kas_4K_{tgl_mulai_res.strftime('%d%m%Y')}.jpg",
-            mime="image/jpeg",
-            use_container_width=True
-        )
+    with col_r1: tgl_mulai_res = st.date_input("Dari Tanggal", datetime.today(), format="DD/MM/YYYY", key="res_mulai")
+    with col_r2: tgl_selesai_res = st.date_input("Sampai Tanggal", datetime.today(), format="DD/MM/YYYY", key="res_selesai")
+    tarik_uang = st.number_input("💵 Total Penarikan Uang Cash (Rp)", min_value=0, step=100000, value=None, placeholder="Ketik nominal...")
 
 # ==========================================
-# MENU 6: PENGATURAN KARYAWAN & PEKERJAAN (MENGGUNAKAN FORM AMAN)
+# MENU 6: PENGATURAN (DENGAN TOMBOL HAPUS ❌ INSTAN)
 # ==========================================
 with menu6:
     st.header("Pengaturan Master Data")
-    st.caption("💡 Tambahkan Karyawan atau Pekerjaan baru dengan aman menggunakan form di bawah ini.")
-    
     col_karyawan, col_pekerjaan = st.columns(2)
     
     with col_karyawan:
         st.subheader("👥 Daftar Nama Karyawan")
-        
         with st.form("form_tambah_karyawan", clear_on_submit=True):
             nama_baru = st.text_input("Nama Karyawan Baru", placeholder="Ketik nama...")
-            btn_tambah_karyawan = st.form_submit_button("➕ Tambah Karyawan", type="primary", use_container_width=True)
-            if btn_tambah_karyawan:
-                if nama_baru.strip() != "":
-                    if nama_baru not in daftar_karyawan:
-                        try:
-                            worksheet = spreadsheet.worksheet(SHEET_KARYAWAN)
-                            worksheet.append_row([nama_baru.strip()])
-                            load_data_from_sheet.clear()
-                            st.success(f"Berhasil menambahkan {nama_baru}!")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Gagal simpan ke server: {e}")
-                    else:
-                        st.warning("Nama karyawan sudah ada!")
-                else:
-                    st.warning("Mohon isi nama karyawan.")
+            if st.form_submit_button("➕ Tambah Karyawan", type="primary", use_container_width=True):
+                if nama_baru.strip() and nama_baru not in daftar_karyawan:
+                    df_karyawan.loc[len(df_karyawan)] = [nama_baru.strip()]
+                    save_data_to_sheet(SHEET_KARYAWAN, df_karyawan)
+                    st.session_state.master_karyawan = df_karyawan
+                    st.success(f"Berhasil menambah {nama_baru}!")
+                    st.rerun()
         
-        st.write("Daftar Karyawan Saat Ini:")
-        if not df_karyawan.empty:
-            for idx, row in df_karyawan.iterrows():
-                st.text(f"• {row['Nama Karyawan']}")
-        else:
-            st.info("Belum ada data karyawan.")
+        st.write("Daftar Karyawan (Klik ❌ untuk menghapus):")
+        for idx, row in df_karyawan.iterrows():
+            c1, c2 = st.columns([4, 1])
+            with c1:
+                st.text(row['Nama Karyawan'])
+            with c2:
+                if st.button("❌", key=f"del_kar_{idx}"):
+                    df_karyawan = df_karyawan.drop(idx).reset_index(drop=True)
+                    save_data_to_sheet(SHEET_KARYAWAN, df_karyawan)
+                    st.session_state.master_karyawan = df_karyawan
+                    st.rerun()
 
     with col_pekerjaan:
         st.subheader("🛠️ Daftar & Harga Pekerjaan")
-        
         with st.form("form_tambah_pekerjaan", clear_on_submit=True):
             pek_baru = st.text_input("Jenis Pekerjaan Baru", placeholder="Ketik jenis pekerjaan...")
-            harga_baru = st.number_input("Harga Per Pcs (Rp)", min_value=0, step=50, value=0)
-            btn_tambah_pek = st.form_submit_button("➕ Tambah Pekerjaan", type="primary", use_container_width=True)
-            if btn_tambah_pek:
-                if pek_baru.strip() != "":
+            harga_baru = st.number_input("Harga Per Pcs (Rp)", min_value=0, step=50, value=None, placeholder="Ketik harga...")
+            if st.form_submit_button("➕ Tambah Pekerjaan", type="primary", use_container_width=True):
+                if pek_baru.strip() and harga_baru is not None:
                     if pek_baru not in daftar_pekerjaan:
-                        try:
-                            worksheet = spreadsheet.worksheet(SHEET_PEKERJAAN)
-                            worksheet.append_row([pek_baru.strip(), harga_baru])
-                            load_data_from_sheet.clear()
-                            st.success(f"Berhasil menambahkan {pek_baru}!")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Gagal simpan ke server: {e}")
-                    else:
-                        st.warning("Jenis pekerjaan sudah ada!")
-                else:
-                    st.warning("Mohon isi nama pekerjaan.")
-
-        st.write("Daftar Pekerjaan & Harga Saat Ini:")
-        if not df_pekerjaan.empty:
-            for idx, row in df_pekerjaan.iterrows():
-                st.text(f"• {row['Jenis Pekerjaan']} (Rp {row['Harga Per Pcs']:,.0f})".replace(",", "."))
-        else:
-            st.info("Belum ada data pekerjaan.")
+                        baris_baru = pd.DataFrame([{"Jenis Pekerjaan": pek_baru.strip(), "Harga Per Pcs": harga_baru}])
+                        df_pekerjaan = pd.concat([df_pekerjaan, baris_baru], ignore_index=True)
+                        save_data_to_sheet(SHEET_PEKERJAAN, df_pekerjaan)
+                        st.session_state.master_pekerjaan = df_pekerjaan
+                        st.success(f"Berhasil menambah {pek_baru}!")
+                        st.rerun()
+        
+        st.write("Daftar Pekerjaan (Klik ❌ untuk menghapus):")
+        for idx, row in df_pekerjaan.iterrows():
+            c1, c2 = st.columns([4, 1])
+            with c1:
+                st.text(f"{row['Jenis Pekerjaan']} (Rp {row['Harga Per Pcs']:,.0f})".replace(",", "."))
+            with c2:
+                if st.button("❌", key=f"del_pek_{idx}"):
+                    df_pekerjaan = df_pekerjaan.drop(idx).reset_index(drop=True)
+                    save_data_to_sheet(SHEET_PEKERJAAN, df_pekerjaan)
+                    st.session_state.master_pekerjaan = df_pekerjaan
+                    st.rerun()
