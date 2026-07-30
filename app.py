@@ -402,7 +402,7 @@ with menu3:
                     st.rerun()
 
 # ==========================================
-# MENU 4: CETAK SLIP GAJI (FORMAT STRUK SEPERTI CONTOH GAMBAR, JELAS DAN BESAR)
+# MENU 4: CETAK SLIP GAJI (FIT KONTEN & PAS SESUAI CONTOH)
 # ==========================================
 with menu4:
     st.header("Cetak & Unduh Slip Gaji")
@@ -435,47 +435,47 @@ with menu4:
                 
                 if len(df_filter_gaji) > 0 or len(df_filter_kb) > 0:
                     baris_slip = [
-                        ("       SLIP GAJI KARYAWAN", 22),
-                        ("==========================================", 16),
-                        (f"Nama    : {nama_slip}", 18),
-                        (f"Periode : {tgl_mulai_slip.strftime('%d/%m/%Y')} - {tgl_selesai_slip.strftime('%d/%m/%Y')}", 18),
-                        ("==========================================", 16),
-                        ("", 10)
+                        ("       SLIP GAJI KARYAWAN", 20),
+                        ("========================================", 14),
+                        (f"Nama    : {nama_slip}", 16),
+                        (f"Periode : {tgl_mulai_slip.strftime('%d/%m/%Y')} - {tgl_selesai_slip.strftime('%d/%m/%Y')}", 16),
+                        ("========================================", 14),
+                        ("", 8)
                     ]
                     
                     total_upah = 0
                     for tgl, data_harian in df_filter_gaji.groupby('Tanggal'):
-                        baris_slip.append((f"Tgl: {tgl.strftime('%d/%m/%Y')}", 16))
+                        baris_slip.append((f"Tgl: {tgl.strftime('%d/%m/%Y')}", 14))
                         sub = 0
                         for _, row in data_harian.iterrows():
                             j, u, t = float(row['Jumlah']), float(row['Upah']), float(row['Total'])
-                            baris_slip.append((f"- {row['Pekerjaan']}", 16))
-                            baris_slip.append((f"    {j:,.0f} pcs x Rp{u:,.0f} = Rp{t:,.0f}".replace(",", "."), 16))
+                            baris_slip.append((f"- {row['Pekerjaan']}", 14))
+                            baris_slip.append((f"    {j:,.0f} pcs x Rp{u:,.0f} = Rp{t:,.0f}".replace(",", "."), 14))
                             sub += t
-                        baris_slip.append((f"Sub-total: Rp{sub:,.0f}".replace(",", "."), 16))
-                        baris_slip.append(("", 10))
+                        baris_slip.append((f"Sub-total: Rp{sub:,.0f}".replace(",", "."), 14))
+                        baris_slip.append(("", 6))
                         total_upah += sub
                         
                     tot_tambah, tot_kurang = 0, 0
                     if len(df_filter_kb) > 0:
-                        baris_slip.append(("--- CATATAN TAMBAHAN ---", 16))
+                        baris_slip.append(("--- CATATAN TAMBAHAN ---", 14))
                         for _, rkb in df_filter_kb.iterrows():
                             nom = float(rkb['Nominal'])
                             sign = "+" if rkb['Tipe'] == "Penambahan" else "-"
-                            baris_slip.append((f" {sign} {rkb['Keterangan']} (Rp {nom:,.0f})".replace(",", "."), 16))
+                            baris_slip.append((f" {sign} {rkb['Keterangan']} (Rp {nom:,.0f})".replace(",", "."), 14))
                             if rkb['Tipe'] == "Penambahan": tot_tambah += nom
                             else: tot_kurang += nom
-                        baris_slip.append(("", 10))
+                        baris_slip.append(("", 6))
                         
                     total_bersih = total_upah + tot_tambah - tot_kurang
-                    baris_slip.append(("==========================================", 16))
-                    baris_slip.append((f"TOTAL GAJI : Rp {total_bersih:,.0f}".replace(",", "."), 20))
-                    baris_slip.append(("==========================================", 16))
+                    baris_slip.append(("========================================", 14))
+                    baris_slip.append((f"TOTAL GAJI : Rp {total_bersih:,.0f}".replace(",", "."), 18))
+                    baris_slip.append(("========================================", 14))
                     
-                    # Menggunakan Skala 3x agar teks berukuran besar, tajam, dan tidak blur saat di-zoom
-                    scale = 3
-                    base_w = 460
-                    total_h = sum([sz for _, sz in baris_slip]) + 60
+                    # Kanvas pas fit konten persis dengan tinggi isi teks
+                    scale = 2
+                    base_w = 400
+                    total_h = sum([sz for _, sz in baris_slip]) + 40
                     
                     img_slip = Image.new('RGB', (base_w * scale, total_h * scale), color=(255, 255, 255))
                     draw_slip = ImageDraw.Draw(img_slip)
@@ -485,13 +485,13 @@ with menu4:
                     except:
                         font_def = None
                         
-                    y_s = 30 * scale
+                    y_s = 20 * scale
                     for txt, sz in baris_slip:
                         try:
                             f_used = ImageFont.truetype("cour.ttf", sz * scale) if font_def else font_def
                         except:
                             f_used = font_def
-                        draw_slip.text((25 * scale, y_s), txt, font=f_used, fill=(0, 0, 0))
+                        draw_slip.text((20 * scale, y_s), txt, font=f_used, fill=(0, 0, 0))
                         y_s += sz * scale
                         
                     buf_s = io.BytesIO()
@@ -499,7 +499,7 @@ with menu4:
                     byte_slip = buf_s.getvalue()
                     
                     st.subheader(f"📄 Slip Gaji: {nama_slip}")
-                    st.image(byte_slip, width=420)
+                    st.image(byte_slip, width=400)
                     st.download_button(f"📥 Unduh Slip - {nama_slip}", data=byte_slip, file_name=f"Slip_{nama_slip}.jpg", mime="image/jpeg", key=f"dl_{nama_slip}")
 
 # ==========================================
