@@ -88,7 +88,7 @@ def get_all_worksheets():
         "kasbon": get_or_create("Data_Kasbon_Bonus", ["ID Kasbon", "Tanggal", "Nama", "Tipe", "Keterangan", "Nominal"]),
         "pengeluaran": get_or_create("Data_Pengeluaran_Lain", ["ID Lain", "Keterangan", "Nominal"]),
         "karyawan": get_or_create("Master_Karyawan", ["Nama Karyawan"]),
-        "pekerjaan": get_or_create("Master_Pekerjaan", ["Jenis Pekerjaan", "Harga Per Pcs"])
+        "pekerjaan": get_or_create("Master_Pekerjaan", ["Jenis Pekerjaan", "Upah"])
     }
 
 ws = get_all_worksheets()
@@ -119,12 +119,15 @@ def load_data_to_memory():
         
     data_pekerjaan = ws["pekerjaan"].get_all_records()
     if not data_pekerjaan:
-        df_pek = pd.DataFrame({"Jenis Pekerjaan": ["Bungkus Patung", "Packing Styrofoam", "Bungkus Cat"], "Harga Per Pcs": [150, 400, 15]})
+        df_pek = pd.DataFrame({"Jenis Pekerjaan": ["Bungkus Patung", "Packing Styrofoam", "Bungkus Cat"], "Upah": [150, 400, 15]})
         ws["pekerjaan"].clear()
         ws["pekerjaan"].update([df_pek.columns.values.tolist()] + df_pek.values.tolist())
         st.session_state.df_pekerjaan = df_pek
     else:
-        st.session_state.df_pekerjaan = pd.DataFrame(data_pekerjaan)
+        df_pek = pd.DataFrame(data_pekerjaan)
+        if "Harga Per Pcs" in df_pek.columns:
+            df_pek = df_pek.rename(columns={"Harga Per Pcs": "Upah"})
+        st.session_state.df_pekerjaan = df_pek
 
 if "data_loaded" not in st.session_state:
     with st.spinner("Memuat Database dari Server... (Hanya 1x)"):
@@ -133,7 +136,7 @@ if "data_loaded" not in st.session_state:
 
 daftar_karyawan = st.session_state.df_karyawan["Nama Karyawan"].dropna().tolist() if not st.session_state.df_karyawan.empty else []
 daftar_pekerjaan = st.session_state.df_pekerjaan["Jenis Pekerjaan"].dropna().tolist() if not st.session_state.df_pekerjaan.empty else []
-tarif_pekerjaan = dict(zip(st.session_state.df_pekerjaan["Jenis Pekerjaan"], pd.to_numeric(st.session_state.df_pekerjaan["Harga Per Pcs"], errors='coerce').fillna(0))) if not st.session_state.df_pekerjaan.empty else {}
+tarif_pekerjaan = dict(zip(st.session_state.df_pekerjaan["Jenis Pekerjaan"], pd.to_numeric(st.session_state.df_pekerjaan["Upah"], errors='coerce').fillna(0))) if not st.session_state.df_pekerjaan.empty else {}
 
 menu1, menu2, menu3, menu4, menu5, menu6 = st.tabs([
     "📝 1. Input Harian", 
@@ -279,7 +282,6 @@ with menu2:
                     def save_callback(t=tgl, h=hari, orig_ids=df_harian['ID Data'].tolist()):
                         edited_df = st.session_state.get(f"editor_{t}_{h}")
                         
-                        # Pengaman absolut jika objek kosong atau bukan DataFrame
                         if edited_df is None or not isinstance(edited_df, pd.DataFrame) or edited_df.empty:
                             df_processed = pd.DataFrame(columns=['ID Data', 'Hari', 'Tanggal', 'Nama', 'Pekerjaan', 'Upah', 'Jumlah', 'Total'])
                         else:
@@ -649,7 +651,7 @@ with menu5:
         st.download_button("📥 Unduh Resume", data=byte_resume, file_name=f"Resume_{tgl_mulai_res.strftime('%d%m%Y')}.jpg", mime="image/jpeg")
 
 # ==========================================
-# MENU 6: PENGATURAN
+# MENU 6: PENGATURAN (TANPA TOMBOL SIMPAN & FORMAT UPAH)
 # ==========================================
 with menu6:
     st.header("Pengaturan Master Data")
@@ -658,54 +660,72 @@ with menu6:
     
     with col_karyawan:
         st.subheader("👥 Daftar Karyawan")
-        st.caption("💡 **Cara Menambah:** Klik kotak kosong di bawah lalu ketik.\n\n💡 **Cara Menghapus:** Klik kotak kecil di ujung kiri tabel, lalu tekan tombol **Delete/Backspace** di keyboard.")
+        st.caption("💡 Klik langsung pada baris untuk menambah atau mengedit nama karyawan, lalu tekan **Enter**. Centang kotak di kiri + **Delete** untuk menghapus.")
         
-        with st.form("form_tabel_karyawan"):
-            edited_karyawan = st.data_editor(
-                st.session_state.df_karyawan, 
-                num_rows="dynamic", 
-                use_container_width=True,
-                hide_index=True 
-            )
+        notif_area_6k = st.empty()
+        if "notif_6k" in st.session_state:
+            notif_area_6k.success(st.session_state["notif_6k"])
+            del st.session_state["notif_6k"]
             
-            notif_area_6k = st.empty()
-            if "notif_6k" in st.session_state:
-                notif_area_6k.success(st.session_state.notif_6k)
-                del st.session_state.notif_6k
-                
-            if st.form_submit_button("💾 Simpan Perubahan Karyawan", type="primary", use_container_width=True):
-                edited_karyawan = edited_karyawan[edited_karyawan['Nama Karyawan'].str.strip() != ""]
-                st.session_state.df_karyawan = edited_karyawan
+        def save_karyawan_callback():
+            edited_kar = st.session_state.get("editor_karyawan")
+            if edited_kar is not None and isinstance(edited_kar, pd.DataFrame):
+                edited_kar = edited_kar[edited_kar['Nama Karyawan'].astype(str).str.strip() != ""]
+                st.session_state.df_karyawan = edited_kar
                 
                 ws["karyawan"].clear()
-                ws["karyawan"].update([edited_karyawan.columns.values.tolist()] + edited_karyawan.fillna("").values.tolist())
-                
-                st.session_state.notif_6k = "✅ Berhasil Disimpan!"
-                st.rerun()
+                ws["karyawan"].update([edited_kar.columns.values.tolist()] + edited_kar.fillna("").values.tolist())
+                st.session_state["notif_6k"] = "✅ Daftar Karyawan Berhasil Disimpan Otomatis!"
+
+        st.data_editor(
+            st.session_state.df_karyawan, 
+            num_rows="dynamic", 
+            use_container_width=True,
+            hide_index=True,
+            key="editor_karyawan",
+            on_change=save_karyawan_callback
+        )
 
     with col_pekerjaan:
-        st.subheader("🛠️ Daftar Pekerjaan & Harga")
-        st.caption("💡 Klik sel paling bawah untuk menambah, atau centang kotak di ujung kiri + tombol **Delete** untuk menghapus.")
+        st.subheader("🛠️ Daftar Pekerjaan & Upah")
+        st.caption("💡 Klik langsung pada baris untuk menambah atau mengedit jenis pekerjaan & upah, lalu tekan **Enter**. Centang kotak di kiri + **Delete** untuk menghapus.")
         
-        with st.form("form_tabel_pekerjaan"):
-            edited_pekerjaan = st.data_editor(
-                st.session_state.df_pekerjaan, 
-                num_rows="dynamic", 
-                use_container_width=True,
-                hide_index=True 
-            )
+        notif_area_6p = st.empty()
+        if "notif_6p" in st.session_state:
+            notif_area_6p.success(st.session_state["notif_6p"])
+            del st.session_state["notif_6p"]
             
-            notif_area_6p = st.empty()
-            if "notif_6p" in st.session_state:
-                notif_area_6p.success(st.session_state.notif_6p)
-                del st.session_state.notif_6p
+        def save_pekerjaan_callback():
+            edited_pek = st.session_state.get("editor_pekerjaan")
+            if edited_pek is not None and isinstance(edited_pek, pd.DataFrame):
+                edited_pek = edited_pek[edited_pek['Jenis Pekerjaan'].astype(str).str.strip() != ""]
                 
-            if st.form_submit_button("💾 Simpan Perubahan Pekerjaan", type="primary", use_container_width=True):
-                edited_pekerjaan = edited_pekerjaan[edited_pekerjaan['Jenis Pekerjaan'].str.strip() != ""]
-                st.session_state.df_pekerjaan = edited_pekerjaan
+                col_upah = edited_pek.columns[1] if len(edited_pek.columns) > 1 else 'Upah'
+                edited_pek[col_upah] = pd.to_numeric(edited_pek[col_upah], errors='coerce').fillna(0)
                 
+                df_final_pek = pd.DataFrame({
+                    'Jenis Pekerjaan': edited_pek.iloc[:, 0],
+                    'Upah': edited_pek[col_upah]
+                })
+                
+                st.session_state.df_pekerjaan = df_final_pek
                 ws["pekerjaan"].clear()
-                ws["pekerjaan"].update([edited_pekerjaan.columns.values.tolist()] + edited_pekerjaan.fillna("").values.tolist())
-                
-                st.session_state.notif_6p = "✅ Berhasil Disimpan!"
-                st.rerun()
+                ws["pekerjaan"].update([df_final_pek.columns.values.tolist()] + df_final_pek.fillna("").values.tolist())
+                st.session_state["notif_6p"] = "✅ Daftar Pekerjaan & Upah Berhasil Disimpan Otomatis!"
+
+        df_pek_view = st.session_state.df_pekerjaan.copy()
+        if "Harga Per Pcs" in df_pek_view.columns:
+            df_pek_view = df_pek_view.rename(columns={"Harga Per Pcs": "Upah"})
+        df_pek_view['Upah'] = pd.to_numeric(df_pek_view['Upah'], errors='coerce').fillna(0)
+
+        st.data_editor(
+            df_pek_view, 
+            num_rows="dynamic", 
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Upah": st.column_config.NumberColumn("Upah", format="Rp %,d")
+            },
+            key="editor_pekerjaan",
+            on_change=save_pekerjaan_callback
+        )
