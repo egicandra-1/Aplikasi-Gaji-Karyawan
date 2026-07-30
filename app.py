@@ -207,7 +207,7 @@ with menu1:
                     st.rerun()
 
 # ==========================================
-# MENU 2: DATABASE & EDIT PEKERJAAN (FORMAT Rp & TANPA INDEX)
+# MENU 2: DATABASE & EDIT PEKERJAAN (FORMAT Rp & TITIK)
 # ==========================================
 with menu2:
     st.header("Database Riwayat Pekerjaan (Per Hari)")
@@ -225,14 +225,14 @@ with menu2:
             
             for tgl, hari in daftar_tanggal:
                 with st.expander(f"📅 Hari **{hari}**, Tanggal **{tgl}**", expanded=True):
-                    # Diperbaiki agar mengambil dari df_tampil
                     df_harian = df_tampil[(df_tampil['Tanggal'] == tgl) & (df_tampil['Hari'] == hari)].copy()
                     
                     df_harian_view = df_harian[['ID Data', 'Nama', 'Pekerjaan', 'Upah', 'Jumlah', 'Total']].copy().reset_index(drop=True)
                     
-                    df_harian_view['Upah'] = pd.to_numeric(df_harian_view['Upah'], errors='coerce').fillna(0)
-                    df_harian_view['Jumlah'] = pd.to_numeric(df_harian_view['Jumlah'], errors='coerce').fillna(0)
-                    df_harian_view['Total'] = pd.to_numeric(df_harian_view['Total'], errors='coerce').fillna(0)
+                    # Konversi angka ke format string dengan titik dan Rp agar mulus
+                    df_harian_view['Upah'] = pd.to_numeric(df_harian_view['Upah'], errors='coerce').fillna(0).apply(lambda x: f"Rp {int(x):,}".replace(",", "."))
+                    df_harian_view['Jumlah'] = pd.to_numeric(df_harian_view['Jumlah'], errors='coerce').fillna(0).apply(lambda x: f"{int(x):,}".replace(",", "."))
+                    df_harian_view['Total'] = pd.to_numeric(df_harian_view['Total'], errors='coerce').fillna(0).apply(lambda x: f"Rp {int(x):,}".replace(",", "."))
                     
                     notif_key = f"notif_2_{tgl}_{hari}"
                     notif_area_2 = st.empty()
@@ -243,9 +243,13 @@ with menu2:
                     def save_callback(t=tgl, h=hari, orig_ids=df_harian['ID Data'].tolist()):
                         edited_df = st.session_state[f"editor_{t}_{h}"]
                         
-                        edited_df['Upah'] = edited_df['Upah'].astype(str).str.replace("Rp", "").str.replace(".", "").str.strip()
+                        # Bersihkan format Rp dan titik sebelum disimpan ke memori/sheets
+                        edited_df['Upah'] = edited_df['Upah'].astype(str).str.replace("Rp", "", case=False).str.replace(".", "", regex=False).str.strip()
                         edited_df['Upah'] = pd.to_numeric(edited_df['Upah'], errors='coerce').fillna(0)
+                        
+                        edited_df['Jumlah'] = edited_df['Jumlah'].astype(str).str.replace(".", "", regex=False).str.strip()
                         edited_df['Jumlah'] = pd.to_numeric(edited_df['Jumlah'], errors='coerce').fillna(0)
+                        
                         edited_df['Total'] = edited_df['Jumlah'] * edited_df['Upah']
                         edited_df['Hari'] = h
                         edited_df['Tanggal'] = t
@@ -266,12 +270,7 @@ with menu2:
                         df_harian_view, 
                         num_rows="dynamic", 
                         use_container_width=True, 
-                        column_config={
-                            "ID Data": None,
-                            "Upah": st.column_config.NumberColumn("Upah", format="Rp #,##0"),
-                            "Jumlah": st.column_config.NumberColumn("Jumlah", format="#,##0"),
-                            "Total": st.column_config.NumberColumn("Total", format="Rp #,##0")
-                        }, 
+                        column_config={"ID Data": None}, 
                         hide_index=True, 
                         key=f"editor_{tgl}_{hari}",
                         on_change=save_callback
