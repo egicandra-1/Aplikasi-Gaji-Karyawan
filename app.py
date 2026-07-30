@@ -402,7 +402,7 @@ with menu3:
                     st.rerun()
 
 # ==========================================
-# MENU 4: CETAK SLIP GAJI (STRUK TEKS BESAR & PAS)
+# MENU 4: CETAK SLIP GAJI (FORMAT STRUK SEPERTI CONTOH GAMBAR, JELAS DAN BESAR)
 # ==========================================
 with menu4:
     st.header("Cetak & Unduh Slip Gaji")
@@ -435,7 +435,7 @@ with menu4:
                 
                 if len(df_filter_gaji) > 0 or len(df_filter_kb) > 0:
                     baris_slip = [
-                        ("SLIP GAJI KARYAWAN", 24),
+                        ("       SLIP GAJI KARYAWAN", 22),
                         ("==========================================", 16),
                         (f"Nama    : {nama_slip}", 18),
                         (f"Periode : {tgl_mulai_slip.strftime('%d/%m/%Y')} - {tgl_selesai_slip.strftime('%d/%m/%Y')}", 18),
@@ -472,9 +472,9 @@ with menu4:
                     baris_slip.append((f"TOTAL GAJI : Rp {total_bersih:,.0f}".replace(",", "."), 20))
                     baris_slip.append(("==========================================", 16))
                     
-                    # Menggunakan Kanvas Proporsional dengan Skala 2x dan Teks Besar agar Tampil Jelas di Preview
-                    scale = 2
-                    base_w = 420
+                    # Menggunakan Skala 3x agar teks berukuran besar, tajam, dan tidak blur saat di-zoom
+                    scale = 3
+                    base_w = 460
                     total_h = sum([sz for _, sz in baris_slip]) + 60
                     
                     img_slip = Image.new('RGB', (base_w * scale, total_h * scale), color=(255, 255, 255))
@@ -488,7 +488,7 @@ with menu4:
                     y_s = 30 * scale
                     for txt, sz in baris_slip:
                         try:
-                            f_used = ImageFont.truetype("arial.ttf", sz * scale) if font_def else font_def
+                            f_used = ImageFont.truetype("cour.ttf", sz * scale) if font_def else font_def
                         except:
                             f_used = font_def
                         draw_slip.text((25 * scale, y_s), txt, font=f_used, fill=(0, 0, 0))
@@ -499,7 +499,7 @@ with menu4:
                     byte_slip = buf_s.getvalue()
                     
                     st.subheader(f"📄 Slip Gaji: {nama_slip}")
-                    st.image(byte_slip, use_container_width=True)
+                    st.image(byte_slip, width=420)
                     st.download_button(f"📥 Unduh Slip - {nama_slip}", data=byte_slip, file_name=f"Slip_{nama_slip}.jpg", mime="image/jpeg", key=f"dl_{nama_slip}")
 
 # ==========================================
@@ -578,7 +578,7 @@ with menu5:
                 st.session_state.notif_5_type = "error"
                 st.rerun()
 
-    if st.button("🖼️ Gambar Resume (HD Jelas & Tajam)", type="primary"):
+    if st.button("🖼️ Generate Gambar Resume", type="primary"):
         tarik_uang = int(tarik_uang_str.strip()) if tarik_uang_str.strip().isdigit() else 0
             
         df_gaji['Tanggal'] = pd.to_datetime(df_gaji['Tanggal']).dt.date
@@ -609,97 +609,118 @@ with menu5:
         total_pengeluaran_keseluruhan = total_gaji_semua + total_pengeluaran_lain
         sisa_uang = tarik_uang - total_pengeluaran_keseluruhan
         
-        scale = 2
-        img_w = 800
-        img_h = 240 + (len(daftar_karyawan) * 35) + 120 + (max(len(df_lain_all), 1) * 35) + 160
+        scale = 4
+        w = 460 * scale
+        base_h = 350
+        row_h = 24
+        h = (base_h + (len(daftar_karyawan) * row_h) + (len(df_lain_all) * row_h)) * scale
         
-        img_res = Image.new('RGB', (img_w * scale, img_h * scale), color=(255, 255, 255))
-        draw_res = ImageDraw.Draw(img_res)
+        img = Image.new('RGB', (w, h), color=(255, 255, 255))
+        draw = ImageDraw.Draw(img)
         
         try:
-            font_title = ImageFont.truetype("arial.ttf", 22 * scale)
-            font_bold = ImageFont.truetype("arial.ttf", 14 * scale)
-            font_regular = ImageFont.truetype("arial.ttf", 13 * scale)
+            f_title = ImageFont.truetype("courbd.ttf", 15 * scale)
+            f_bold = ImageFont.truetype("courbd.ttf", 11 * scale)
+            f_reg = ImageFont.truetype("cour.ttf", 11 * scale)
         except:
-            font_title = font_bold = font_regular = ImageFont.load_default()
+            f_title = ImageFont.load_default()
+            f_bold = f_title
+            f_reg = f_title
             
-        draw_res.text((40 * scale, 30 * scale), "LAPORAN RESUME KAS & GAJI", fill=(0, 0, 0), font=font_title)
-        draw_res.text((40 * scale, 65 * scale), f"Periode: {tgl_mulai_res.strftime('%d/%m/%Y')} s/d {tgl_selesai_res.strftime('%d/%m/%Y')}", fill=(80, 80, 80), font=font_regular)
-        draw_res.line([(40 * scale, 95 * scale), (760 * scale, 95 * scale)], fill=(0, 0, 0), width=3 * scale)
+        margin = 20 * scale
+        y = margin
         
-        y = 120 * scale
-        draw_res.text((40 * scale, y), "A.  RINCIAN GAJI KARYAWAN", fill=(0, 0, 0), font=font_bold)
+        draw.text((margin, y), "LAPORAN RESUME KAS & GAJI", fill=(0, 0, 0), font=f_title)
+        y += 22 * scale
+        periode_str = f"Periode: {tgl_mulai_res.strftime('%d/%m/%Y')} s/d {tgl_selesai_res.strftime('%d/%m/%Y')}"
+        draw.text((margin, y), periode_str, fill=(80, 80, 80), font=f_bold)
         y += 25 * scale
         
-        draw_res.rectangle([40 * scale, y, 760 * scale, y + 30 * scale], fill=(230, 230, 230), outline=(0, 0, 0), width=1 * scale)
-        draw_res.text((50 * scale, y + 6 * scale), "NAMA KARYAWAN", fill=(0, 0, 0), font=font_bold)
-        draw_res.text((550 * scale, y + 6 * scale), "JUMLAH (Rp)", fill=(0, 0, 0), font=font_bold)
-        y += 30 * scale
+        draw.line([(margin, y), (w - margin, y)], fill=(0, 0, 0), width=2 * scale)
+        y += 15 * scale
+        
+        draw.text((margin, y), "A. RINCIAN GAJI KARYAWAN", fill=(0, 0, 0), font=f_bold)
+        y += 20 * scale
+        
+        table_width = w - (margin * 2)
+        col_nama_w = int(table_width * 0.6)
+        
+        draw.rectangle([margin, y, margin + table_width, y + 22 * scale], fill=(230, 230, 230), outline=(0, 0, 0))
+        draw.text((margin + 8 * scale, y + 4 * scale), "NAMA KARYAWAN", fill=(0, 0, 0), font=f_bold)
+        draw.text((margin + col_nama_w + 8 * scale, y + 4 * scale), "JUMLAH (Rp)", fill=(0, 0, 0), font=f_bold)
+        y += 22 * scale
         
         for k in daftar_karyawan:
             val = rekap_gaji.get(k, 0)
-            draw_res.rectangle([40 * scale, y, 760 * scale, y + 30 * scale], outline=(200, 200, 200), width=1 * scale)
-            draw_res.text((50 * scale, y + 6 * scale), k, fill=(30, 30, 30), font=font_regular)
-            draw_res.text((550 * scale, y + 6 * scale), f"{val:,.0f}".replace(",", "."), fill=(30, 30, 30), font=font_regular)
-            y += 30 * scale
+            val_fmt = f"{val:,.0f}".replace(",", ".")
+            draw.rectangle([margin, y, margin + table_width, y + 20 * scale], outline=(0, 0, 0))
+            draw.text((margin + 8 * scale, y + 3 * scale), k, fill=(0, 0, 0), font=f_reg)
+            draw.text((margin + col_nama_w + 8 * scale, y + 3 * scale), val_fmt, fill=(0, 0, 0), font=f_reg)
+            y += 20 * scale
             
-        draw_res.rectangle([40 * scale, y, 760 * scale, y + 30 * scale], fill=(240, 240, 240), outline=(0, 0, 0), width=1 * scale)
-        draw_res.text((50 * scale, y + 6 * scale), "TOTAL GAJI KARYAWAN", fill=(0, 0, 0), font=font_bold)
-        draw_res.text((550 * scale, y + 6 * scale), f"{total_gaji_semua:,.0f}".replace(",", "."), fill=(0, 0, 0), font=font_bold)
-        y += 50 * scale
-        
-        draw_res.text((40 * scale, y), "B.  PENGELUARAN LAIN-LAIN", fill=(0, 0, 0), font=font_bold)
-        y += 25 * scale
-        
-        draw_res.rectangle([40 * scale, y, 760 * scale, y + 30 * scale], fill=(230, 230, 230), outline=(0, 0, 0), width=1 * scale)
-        draw_res.text((50 * scale, y + 6 * scale), "KETERANGAN", fill=(0, 0, 0), font=font_bold)
-        draw_res.text((550 * scale, y + 6 * scale), "JUMLAH (Rp)", fill=(0, 0, 0), font=font_bold)
+        draw.rectangle([margin, y, margin + table_width, y + 22 * scale], fill=(240, 240, 240), outline=(0, 0, 0))
+        draw.text((margin + 8 * scale, y + 4 * scale), "TOTAL GAJI KARYAWAN", fill=(0, 0, 0), font=f_bold)
+        tot_gaji_fmt = f"{total_gaji_semua:,.0f}".replace(",", ".")
+        draw.text((margin + col_nama_w + 8 * scale, y + 4 * scale), tot_gaji_fmt, fill=(0, 0, 0), font=f_bold)
         y += 30 * scale
         
-        if len(df_lain_all) > 0:
-            for _, r in df_lain_all.iterrows():
-                draw_res.rectangle([40 * scale, y, 760 * scale, y + 30 * scale], outline=(200, 200, 200), width=1 * scale)
-                draw_res.text((50 * scale, y + 6 * scale), str(r['Keterangan']), fill=(30, 30, 30), font=font_regular)
-                draw_res.text((550 * scale, y + 6 * scale), f"{float(r['Nominal']):,.0f}".replace(",", "."), fill=(30, 30, 30), font=font_regular)
-                y += 30 * scale
-        else:
-            draw_res.rectangle([40 * scale, y, 760 * scale, y + 30 * scale], outline=(200, 200, 200), width=1 * scale)
-            draw_res.text((50 * scale, y + 6 * scale), "(Tidak ada pengeluaran lain)", fill=(120, 120, 120), font=font_regular)
-            draw_res.text((550 * scale, y + 6 * scale), "0", fill=(120, 120, 120), font=font_regular)
-            y += 30 * scale
-            
-        draw_res.rectangle([40 * scale, y, 760 * scale, y + 30 * scale], fill=(240, 240, 240), outline=(0, 0, 0), width=1 * scale)
-        draw_res.text((50 * scale, y + 6 * scale), "TOTAL PENGELUARAN LAIN", fill=(0, 0, 0), font=font_bold)
-        draw_res.text((550 * scale, y + 6 * scale), f"{total_pengeluaran_lain:,.0f}".replace(",", "."), fill=(0, 0, 0), font=font_bold)
-        y += 50 * scale
+        draw.text((margin, y), "B. PENGELUARAN LAIN-LAIN", fill=(0, 0, 0), font=f_bold)
+        y += 20 * scale
         
-        draw_res.text((40 * scale, y), "C.  RINGKASAN KAS", fill=(0, 0, 0), font=font_bold)
-        y += 25 * scale
+        draw.rectangle([margin, y, margin + table_width, y + 22 * scale], fill=(230, 230, 230), outline=(0, 0, 0))
+        draw.text((margin + 8 * scale, y + 4 * scale), "KETERANGAN", fill=(0, 0, 0), font=f_bold)
+        draw.text((margin + col_nama_w + 8 * scale, y + 4 * scale), "JUMLAH (Rp)", fill=(0, 0, 0), font=f_bold)
+        y += 22 * scale
+        
+        if len(df_lain_all) > 0:
+            for _, row_l in df_lain_all.iterrows():
+                ket = str(row_l['Keterangan'])
+                nom = float(row_l['Nominal']) if pd.notnull(row_l['Nominal']) else 0
+                nom_fmt = f"{nom:,.0f}".replace(",", ".")
+                draw.rectangle([margin, y, margin + table_width, y + 20 * scale], outline=(0, 0, 0))
+                draw.text((margin + 8 * scale, y + 3 * scale), ket, fill=(0, 0, 0), font=f_reg)
+                draw.text((margin + col_nama_w + 8 * scale, y + 3 * scale), nom_fmt, fill=(0, 0, 0), font=f_reg)
+                y += 20 * scale
+        else:
+            draw.rectangle([margin, y, margin + table_width, y + 20 * scale], outline=(0, 0, 0))
+            draw.text((margin + 8 * scale, y + 3 * scale), "(Tidak ada pengeluaran lain)", fill=(120, 120, 120), font=f_reg)
+            draw.text((margin + col_nama_w + 8 * scale, y + 3 * scale), "0", fill=(120, 120, 120), font=f_reg)
+            y += 20 * scale
+            
+        draw.rectangle([margin, y, margin + table_width, y + 22 * scale], fill=(240, 240, 240), outline=(0, 0, 0))
+        draw.text((margin + 8 * scale, y + 4 * scale), "TOTAL PENGELUARAN LAIN", fill=(0, 0, 0), font=f_bold)
+        tot_lain_fmt = f"{total_pengeluaran_lain:,.0f}".replace(",", ".")
+        draw.text((margin + col_nama_w + 8 * scale, y + 4 * scale), tot_lain_fmt, fill=(0, 0, 0), font=f_bold)
+        y += 30 * scale
+        
+        draw.text((margin, y), "C. RINGKASAN KAS", fill=(0, 0, 0), font=f_bold)
+        y += 20 * scale
         
         ringkasan_data = [
             ("Total Penarikan Uang Cash", f"Rp {tarik_uang:,.0f}".replace(",", ".")),
             ("Total Pengeluaran Keseluruhan", f"Rp {total_pengeluaran_keseluruhan:,.0f}".replace(",", ".")),
-            ("SISA SALDO KAS", f"Rp {sisa_uang:,.0f}".replace(".", "."))
+            ("SISA SALDO KAS", f"Rp {sisa_uang:,.0f}".replace(",", "."))
         ]
         
-        for idx, (label, val) in enumerate(ringkasan_data):
-            bg_col = (210, 230, 250) if idx == 2 else (255, 255, 255)
-            draw_res.rectangle([40 * scale, y, 760 * scale, y + 35 * scale], fill=bg_col, outline=(0, 0, 0), width=1 * scale)
-            draw_res.text((50 * scale, y + 8 * scale), label, fill=(0, 0, 0), font=font_bold)
-            draw_res.text((550 * scale, y + 8 * scale), val, fill=(0, 0, 0), font=font_bold)
-            y += 35 * scale
+        for idx_r, (lbl, val_r) in enumerate(ringkasan_data):
+            is_last = (idx_r == len(ringkasan_data) - 1)
+            bg_col = (210, 230, 250) if is_last else (255, 255, 255)
+            draw.rectangle([margin, y, margin + table_width, y + 24 * scale], fill=bg_col, outline=(0, 0, 0))
+            draw.text((margin + 8 * scale, y + 5 * scale), lbl, fill=(0, 0, 0), font=f_bold)
+            draw.text((margin + col_nama_w - 20 * scale, y + 5 * scale), val_r, fill=(0, 0, 0), font=f_bold)
+            y += 24 * scale
             
-        buf_res = io.BytesIO()
-        img_res.save(buf_res, format="JPEG", quality=95)
-        byte_resume = buf_res.getvalue()
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=95)
+        byte_resume = buf.getvalue()
         
         st.markdown("---")
         st.subheader("👁️ Ringkasan Akhir")
-        st.image(byte_resume, use_container_width=True)
+        st.image(byte_resume, width=460)
         st.download_button("📥 Unduh Resume", data=byte_resume, file_name=f"Resume_{tgl_mulai_res.strftime('%d%m%Y')}.jpg", mime="image/jpeg")
 
 # ==========================================
-# MENU 6: PENGATURAN (DENGAN TOMBOL SIMPAN & NOTIFIKASI)
+# MENU 6: PENGATURAN (TANPA TOMBOL SIMPAN & FORMAT UPAH PER PCS)
 # ==========================================
 with menu6:
     st.header("Pengaturan Master Data")
@@ -708,93 +729,75 @@ with menu6:
     
     with col_karyawan:
         st.subheader("👥 Daftar Karyawan")
-        st.caption("💡 Klik langsung pada baris untuk menambah atau mengedit nama karyawan. Centang kotak di kiri + **Delete** untuk menghapus.")
+        st.caption("💡 Klik langsung pada baris untuk menambah atau mengedit nama karyawan, lalu tekan **Enter**. Centang kotak di kiri + **Delete** untuk menghapus.")
         
-        with st.form("form_master_karyawan"):
-            edited_karyawan = st.data_editor(
-                st.session_state.df_karyawan, 
-                num_rows="dynamic", 
-                use_container_width=True,
-                hide_index=True,
-                key="editor_karyawan"
-            )
+        notif_area_6k = st.empty()
+        if "notif_6k" in st.session_state:
+            notif_area_6k.success(st.session_state["notif_6k"])
+            del st.session_state["notif_6k"]
             
-            notif_area_6k = st.empty()
-            if "notif_6k" in st.session_state:
-                if st.session_state.notif_6k_type == "success":
-                    notif_area_6k.success(st.session_state.notif_6k)
-                else:
-                    notif_area_6k.error(st.session_state.notif_6k)
-                del st.session_state.notif_6k
-                del st.session_state.notif_6k_type
+        def save_karyawan_callback():
+            edited_kar = st.session_state.get("editor_karyawan")
+            if edited_kar is not None and isinstance(edited_kar, pd.DataFrame):
+                edited_kar = edited_kar[edited_kar['Nama Karyawan'].astype(str).str.strip() != ""]
+                st.session_state.df_karyawan = edited_kar
                 
-            if st.form_submit_button("💾 Simpan Perubahan Karyawan", type="primary", use_container_width=True):
-                try:
-                    edited_karyawan = edited_karyawan[edited_karyawan['Nama Karyawan'].astype(str).str.strip() != ""]
-                    st.session_state.df_karyawan = edited_karyawan
-                    
-                    ws["karyawan"].clear()
-                    ws["karyawan"].update([edited_karyawan.columns.values.tolist()] + edited_karyawan.fillna("").values.tolist())
-                    
-                    st.session_state.notif_6k = "✅ Daftar Karyawan Berhasil Disimpan!"
-                    st.session_state.notif_6k_type = "success"
-                    st.rerun()
-                except Exception as e:
-                    st.session_state.notif_6k = f"⚠️ Gagal menyimpan: {e}"
-                    st.session_state.notif_6k_type = "error"
-                    st.rerun()
+                ws["karyawan"].clear()
+                ws["karyawan"].update([edited_kar.columns.values.tolist()] + edited_kar.fillna("").values.tolist())
+                st.session_state["notif_6k"] = "✅ Daftar Karyawan Berhasil Disimpan Otomatis!"
+
+        st.data_editor(
+            st.session_state.df_karyawan, 
+            num_rows="dynamic", 
+            use_container_width=True,
+            hide_index=True,
+            key="editor_karyawan",
+            on_change=save_karyawan_callback
+        )
 
     with col_pekerjaan:
         st.subheader("🛠️ Daftar Pekerjaan & Upah")
-        st.caption("💡 Klik langsung pada baris untuk menambah atau mengedit jenis pekerjaan & upah. Centang kotak di kiri + **Delete** untuk menghapus.")
+        st.caption("💡 Klik langsung pada baris untuk menambah atau mengedit jenis pekerjaan & upah, lalu tekan **Enter**. Centang kotak di kiri + **Delete** untuk menghapus.")
         
-        with st.form("form_master_pekerjaan"):
-            df_pek_view = st.session_state.df_pekerjaan.copy()
-            if "Harga Per Pcs" in df_pek_view.columns:
-                df_pek_view = df_pek_view.rename(columns={"Harga Per Pcs": "Upah"})
-            elif len(df_pek_view.columns) > 1 and df_pek_view.columns[1] != "Upah":
-                df_pek_view = df_pek_view.rename(columns={df_pek_view.columns[1]: "Upah"})
-            df_pek_view['Upah'] = pd.to_numeric(df_pek_view['Upah'], errors='coerce').fillna(0)
-
-            edited_pekerjaan = st.data_editor(
-                df_pek_view, 
-                num_rows="dynamic", 
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "Upah": st.column_config.NumberColumn("Upah (Per Pcs)", format="Rp %,d")
-                },
-                key="editor_pekerjaan"
-            )
+        notif_area_6p = st.empty()
+        if "notif_6p" in st.session_state:
+            notif_area_6p.success(st.session_state["notif_6p"])
+            del st.session_state["notif_6p"]
             
-            notif_area_6p = st.empty()
-            if "notif_6p" in st.session_state:
-                if st.session_state.notif_6p_type == "success":
-                    notif_area_6p.success(st.session_state.notif_6p)
-                else:
-                    notif_area_6p.error(st.session_state.notif_6p)
-                del st.session_state.notif_6p
-                del st.session_state.notif_6p_type
+        def save_pekerjaan_callback():
+            edited_pek = st.session_state.get("editor_pekerjaan")
+            if edited_pek is not None and isinstance(edited_pek, pd.DataFrame):
+                edited_pek = edited_pek[edited_pek['Jenis Pekerjaan'].astype(str).str.strip() != ""]
                 
-            if st.form_submit_button("💾 Simpan Perubahan Pekerjaan", type="primary", use_container_width=True):
-                try:
-                    edited_pekerjaan = edited_pekerjaan[edited_pekerjaan['Jenis Pekerjaan'].astype(str).str.strip() != ""]
-                    col_upah_target = edited_pekerjaan.columns[1] if len(edited_pekerjaan.columns) > 1 else 'Upah'
-                    edited_pekerjaan[col_upah_target] = pd.to_numeric(edited_pekerjaan[col_upah_target], errors='coerce').fillna(0)
-                    
-                    df_final_pek = pd.DataFrame({
-                        'Jenis Pekerjaan': edited_pekerjaan.iloc[:, 0],
-                        'Upah': edited_pekerjaan[col_upah_target]
-                    })
-                    
-                    st.session_state.df_pekerjaan = df_final_pek
-                    ws["pekerjaan"].clear()
-                    ws["pekerjaan"].update([df_final_pek.columns.values.tolist()] + df_final_pek.fillna("").values.tolist())
-                    
-                    st.session_state.notif_6p = "✅ Daftar Pekerjaan & Upah Berhasil Disimpan!"
-                    st.session_state.notif_6p_type = "success"
-                    st.rerun()
-                except Exception as e:
-                    st.session_state.notif_6p = f"⚠️ Gagal menyimpan: {e}"
-                    st.session_state.notif_6p_type = "error"
-                    st.rerun()
+                col_upah_target = edited_pek.columns[1] if len(edited_pek.columns) > 1 else 'Upah'
+                edited_pek[col_upah_target] = pd.to_numeric(edited_pek[col_upah_target], errors='coerce').fillna(0)
+                
+                df_final_pek = pd.DataFrame({
+                    'Jenis Pekerjaan': edited_pek.iloc[:, 0],
+                    'Upah': edited_pek[col_upah_target]
+                })
+                
+                st.session_state.df_pekerjaan = df_final_pek
+                ws["pekerjaan"].clear()
+                ws["pekerjaan"].update([df_final_pek.columns.values.tolist()] + df_final_pek.fillna("").values.tolist())
+                st.session_state["notif_6p"] = "✅ Daftar Pekerjaan & Upah Berhasil Disimpan!"
+
+        df_pek_view = st.session_state.df_pekerjaan.copy()
+        if "Harga Per Pcs" in df_pek_view.columns:
+            df_pek_view = df_pek_view.rename(columns={"Harga Per Pcs": "Upah"})
+        elif len(df_pek_view.columns) > 1 and df_pek_view.columns[1] != "Upah":
+            df_pek_view = df_pek_view.rename(columns={df_pek_view.columns[1]: "Upah"})
+            
+        df_pek_view['Upah'] = pd.to_numeric(df_pek_view['Upah'], errors='coerce').fillna(0)
+
+        st.data_editor(
+            df_pek_view, 
+            num_rows="dynamic", 
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Upah": st.column_config.NumberColumn("Upah (Per Pcs)", format="Rp %,d")
+            },
+            key="editor_pekerjaan",
+            on_change=save_pekerjaan_callback
+        )
