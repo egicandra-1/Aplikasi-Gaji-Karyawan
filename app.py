@@ -13,7 +13,7 @@ HARI_INDO = {
     "Thursday": "Kamis", "Friday": "Jumat", "Saturday": "Sabtu", "Sunday": "Minggu"
 }
 
-URUTAN_HARI = {"Senin": 1, "Selasa": 2, "Rabu": 3, "Kamis": 4, "Jumat": 5, "Sabtu": 6, "Ninggu": 7}
+URUTAN_HARI = {"Senin": 1, "Selasa": 2, "Rabu": 3, "Kamis": 4, "Jumat": 5, "Sabtu": 6, "Minggu": 7}
 
 # Mengatur tampilan halaman
 st.set_page_config(page_title="Sistem Penggajian", layout="wide", page_icon="📝")
@@ -36,7 +36,7 @@ def init_connection():
 client = init_connection()
 spreadsheet = client.open("Database_Aplikasi_Gaji")
 
-# --- FUNGSI BANTU GOOGLE SHEETS (DENGAN CACHE AGAR CEPAT) ---
+# --- FUNGSI BANTU GOOGLE SHEETS (DENGAN CACHE CEPAT) ---
 @st.cache_data(ttl=600)
 def load_data_from_sheet(nama_sheet, kolom_default):
     try:
@@ -65,8 +65,6 @@ def save_data_to_sheet(nama_sheet, df):
     worksheet.clear()
     data_to_write = [df.columns.values.tolist()] + df.fillna("").values.tolist()
     worksheet.update(data_to_write)
-    
-    # Membersihkan cache otomatis setiap kali data diubah/disimpan
     load_data_from_sheet.clear()
 
 # --- NAMA TAB SHEET GOOGLE SHEETS ---
@@ -121,7 +119,7 @@ if "pesan_kb" not in st.session_state:
 if "tipe_kb" not in st.session_state:
     st.session_state.tipe_kb = ""
 
-# --- FUNGSI SIMPAN OTOMATIS & VALIDASI ENTER HARIAN ---
+# --- FUNGSI SIMPAN CEPAT (MENGGUNAKAN APPEND AGAR TANPA LOAD ULANG SHEET UTUH) ---
 def simpan_otomatis_via_enter():
     pekerjaan = st.session_state.pekerjaan_input
     jumlah = st.session_state.jumlah_input
@@ -133,27 +131,20 @@ def simpan_otomatis_via_enter():
         upah = tarif_pekerjaan[pekerjaan]
         total = jumlah * upah
         
-        data_baru = {
-            "ID Data": f"ID-{int(time.time())}",
-            "Hari": nama_hari,
-            "Tanggal": tanggal.strftime("%Y-%m-%d"),
-            "Nama": nama,
-            "Pekerjaan": pekerjaan,
-            "Upah": upah,
-            "Jumlah": jumlah,
-            "Total": total
-        }
-        
-        df_lama = load_data_from_sheet(SHEET_GAJI, ["ID Data", "Hari", "Tanggal", "Nama", "Pekerjaan", "Upah", "Jumlah", "Total"])
-        if "Harga" in df_lama.columns:
-            df_lama = df_lama.rename(columns={"Harga": "Upah"})
+        # Kirim langsung baris baru ke Google Sheets menggunakan append_row (Sangat Cepat!)
+        try:
+            worksheet = spreadsheet.worksheet(SHEET_GAJI)
+            id_data = f"ID-{int(time.time())}"
+            tgl_str = tanggal.strftime("%Y-%m-%d")
+            worksheet.append_row([id_data, nama_hari, tgl_str, nama, pekerjaan, upah, jumlah, total])
+            load_data_from_sheet.clear() # Bersihkan cache supaya data sinkron
             
-        df_simpan = pd.concat([df_lama, pd.DataFrame([data_baru])], ignore_index=True)
-        save_data_to_sheet(SHEET_GAJI, df_simpan)
-        
-        jml_fmt = f"{jumlah:,.0f}".replace(",", ".")
-        st.session_state.pesan_tipe = "success"
-        st.session_state.pesan_notif = f"✅ Berhasil menyimpan! {jml_fmt} {pekerjaan} untuk {nama}."
+            jml_fmt = f"{jumlah:,.0f}".replace(",", ".")
+            st.session_state.pesan_tipe = "success"
+            st.session_state.pesan_notif = f"✅ Berhasil menyimpan! {jml_fmt} {pekerjaan} untuk {nama}."
+        except Exception as e:
+            st.session_state.pesan_tipe = "error"
+            st.session_state.pesan_notif = f"⚠️ Gagal menyimpan ke server: {e}"
         
         st.session_state.pekerjaan_input = "-"
         st.session_state.jumlah_input = None
@@ -197,7 +188,7 @@ with menu1:
 
         st.markdown("---")
         st.markdown("### ⚡ Panel Input Cepat")
-        st.caption("Pilih pekerjaan, ketik jumlahnya, lalu **tekan Enter**. Data akan otomatis tersimpan.")
+        st.caption("Pilih pekerjaan, ketik jumlahnya, lalu **tekan Enter**. Data akan otomatis tersimpan instan.")
         
         col1, col2 = st.columns([2, 1])
         with col1:
@@ -301,20 +292,19 @@ with menu3:
             submitted_kb = st.form_submit_button("💾 Simpan Data", type="primary", use_container_width=True)
             if submitted_kb:
                 if nominal_kb is not None and nominal_kb > 0 and ket_kb.strip() != "":
-                    df_kb_lama = load_data_from_sheet(SHEET_KASBON, ["ID Kasbon", "Tanggal", "Nama", "Tipe", "Keterangan", "Nominal"])
-                    baris_baru = {
-                        "ID Kasbon": f"KB-{int(time.time())}",
-                        "Tanggal": tgl_kb.strftime("%Y-%m-%d"),
-                        "Nama": nama_kb,
-                        "Tipe": tipe_kb,
-                        "Keterangan": ket_kb,
-                        "Nominal": nominal_kb
-                    }
-                    df_kb_baru = pd.concat([df_kb_lama, pd.DataFrame([baris_baru])], ignore_index=True)
-                    save_data_to_sheet(SHEET_KASBON, df_kb_baru)
-                    st.session_state.tipe_kb = "success"
-                    st.session_state.pesan_kb = f"✅ Berhasil menyimpan {tipe_kb} untuk {nama_kb} sebesar Rp {nominal_kb:,.0f}!".replace(",", ".")
-                    st.rerun()
+                    try:
+                        worksheet = spreadsheet.worksheet(SHEET_KASBON)
+                        id_kb = f"KB-{int(time.time())}"
+                        tgl_str = tgl_kb.strftime("%Y-%m-%d")
+                        worksheet.append_row([id_kb, tgl_str, nama_kb, tipe_kb, ket_kb, nominal_kb])
+                        load_data_from_sheet.clear()
+                        
+                        st.session_state.tipe_kb = "success"
+                        st.session_state.pesan_kb = f"✅ Berhasil menyimpan {tipe_kb} untuk {nama_kb} sebesar Rp {nominal_kb:,.0f}!".replace(",", ".")
+                        st.rerun()
+                    except Exception as e:
+                        st.session_state.tipe_kb = "error"
+                        st.session_state.pesan_kb = f"⚠️ Gagal simpan ke server: {e}"
                 else:
                     st.session_state.tipe_kb = "error"
                     st.session_state.pesan_kb = "⚠️ Gagal simpan! Mohon isi keterangan dan nominal dengan benar (harus lebih dari 0)."
@@ -553,15 +543,16 @@ with menu5:
         submitted_lain = st.form_submit_button("➕ Tambah Pengeluaran Lain", type="primary", use_container_width=True)
         if submitted_lain:
             if nominal_lain is not None and nominal_lain > 0 and ket_lain.strip() != "":
-                baris_baru_lain = pd.DataFrame([{
-                    "ID Lain": f"LAIN-{int(time.time())}",
-                    "Keterangan": ket_lain,
-                    "Nominal": nominal_lain
-                }])
-                df_lain_updated = pd.concat([df_lain_all, baris_baru_lain], ignore_index=True)
-                save_data_to_sheet(SHEET_PENGELUARAN, df_lain_updated)
-                st.success(f"Berhasil menambahkan '{ket_lain}' sebesar Rp {nominal_lain:,.0f}!".replace(",", "."))
-                st.rerun()
+                try:
+                    worksheet = spreadsheet.worksheet(SHEET_PENGELUARAN)
+                    id_lain = f"LAIN-{int(time.time())}"
+                    worksheet.append_row([id_lain, ket_lain, nominal_lain])
+                    load_data_from_sheet.clear()
+                    
+                    st.success(f"Berhasil menambahkan '{ket_lain}' sebesar Rp {nominal_lain:,.0f}!".replace(",", "."))
+                    st.rerun()
+                except Exception as e:
+                    st.warning(f"⚠️ Gagal menyimpan ke server: {e}")
             else:
                 st.warning("⚠️ Mohon isi keterangan dan nominal pengeluaran dengan benar.")
 
