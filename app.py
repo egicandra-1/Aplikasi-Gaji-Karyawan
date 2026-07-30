@@ -279,10 +279,8 @@ with menu2:
                     def save_callback(t=tgl, h=hari, orig_ids=df_harian['ID Data'].tolist()):
                         edited_df = st.session_state[f"editor_{t}_{h}"]
                         
-                        edited_df['Upah'] = edited_df['Upah'].astype(str).str.replace("Rp", "", case=False).str.replace(".", "", regex=False).str.strip()
+                        # Konversi aman untuk kolom Upah dan Jumlah
                         edited_df['Upah'] = pd.to_numeric(edited_df['Upah'], errors='coerce').fillna(0)
-                        
-                        edited_df['Jumlah'] = edited_df['Jumlah'].astype(str).str.replace(".", "", regex=False).str.strip()
                         edited_df['Jumlah'] = pd.to_numeric(edited_df['Jumlah'], errors='coerce').fillna(0)
                         
                         edited_df['Total'] = edited_df['Jumlah'] * edited_df['Upah']
@@ -497,7 +495,6 @@ with menu5:
     else:
         tgl_mulai_res = tgl_selesai_res = rentang_res[0] if isinstance(rentang_res, tuple) else rentang_res
     
-    # Input Penarikan Kas dengan Notifikasi Interaktif Profesional
     tarik_uang_str = st.text_input("💵 Total Penarikan Uang Cash (Rp)", placeholder="Ketik nominal (contoh: 5000000)")
     
     if tarik_uang_str.strip():
