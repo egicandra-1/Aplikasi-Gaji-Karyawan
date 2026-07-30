@@ -140,8 +140,8 @@ with menu1:
         del st.session_state.notif_sukses_harian
 
     # Memastikan nilai default memori tidak melebihi tanggal hari ini
-    today_date = datetime.today()
-    if "last_date_harian" not in st.session_state or st.session_state.last_date_harian.date() > today_date.date():
+    today_date = datetime.today().date()
+    if "last_date_harian" not in st.session_state or st.session_state.last_date_harian > today_date:
         st.session_state.last_date_harian = today_date
         
     if "last_karyawan_harian" not in st.session_state:
@@ -266,8 +266,9 @@ with menu3:
         st.success(st.session_state.notif_sukses_kb)
         del st.session_state.notif_sukses_kb
 
-    if "last_date_kb" not in st.session_state or st.session_state.last_date_kb.date() > today_date.date():
-        st.session_state.last_date_kb = today_date
+    today_date_kb = datetime.today().date()
+    if "last_date_kb" not in st.session_state or st.session_state.last_date_kb > today_date_kb:
+        st.session_state.last_date_kb = today_date_kb
         
     if "last_karyawan_kb" not in st.session_state:
         st.session_state.last_karyawan_kb = daftar_karyawan[0] if daftar_karyawan else ""
@@ -276,7 +277,6 @@ with menu3:
         with st.form("form_kasbon", clear_on_submit=True):
             col_kb1, col_kb2, col_kb3 = st.columns(3)
             with col_kb1:
-                # Menggunakan parameter max_value=datetime.today()
                 tgl_kb = st.date_input("Tanggal Transaksi", st.session_state.last_date_kb, max_value=datetime.today(), format="DD/MM/YYYY")
             with col_kb2:
                 idx_kb = daftar_karyawan.index(st.session_state.last_karyawan_kb) if st.session_state.last_karyawan_kb in daftar_karyawan else 0
