@@ -13,7 +13,7 @@ HARI_INDO = {
     "Thursday": "Kamis", "Friday": "Jumat", "Saturday": "Sabtu", "Sunday": "Minggu"
 }
 
-URUTAN_HARI = {"Senin": 1, "Selasa": 2, "Rabu": 3, "Kamis": 4, "Jumat": 5, "Sabtu": 6, "Minggu": 7}
+URUTAN_HARI = {"Senin": 1, "Selasa": 2, "Rabu": 3, "Kamis": 4, "Jumat": 5, "Sabtu": 6, "Ninggu": 7}
 
 # Mengatur tampilan halaman
 st.set_page_config(page_title="Sistem Penggajian", layout="wide", page_icon="📝")
@@ -24,10 +24,8 @@ st.title("Aplikasi Rekap Gaji Karyawan")
 def init_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     try:
-        # Untuk dijalankan di komputer lokal menggunakan file credentials.json
         creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
     except:
-        # Untuk dijalankan di Streamlit Cloud (mengambil dari Secrets)
         import json
         dict_creds = dict(st.secrets["gcp_service_account"])
         creds = ServiceAccountCredentials.from_json_keyfile_dict(dict_creds, scope)
@@ -38,7 +36,8 @@ def init_connection():
 client = init_connection()
 spreadsheet = client.open("Database_Aplikasi_Gaji")
 
-# --- FUNGSI BANTU GOOGLE SHEETS ---
+# --- FUNGSI BANTU GOOGLE SHEETS (DENGAN CACHE AGAR CEPAT) ---
+@st.cache_data(ttl=600)
 def load_data_from_sheet(nama_sheet, kolom_default):
     try:
         worksheet = spreadsheet.worksheet(nama_sheet)
@@ -66,6 +65,9 @@ def save_data_to_sheet(nama_sheet, df):
     worksheet.clear()
     data_to_write = [df.columns.values.tolist()] + df.fillna("").values.tolist()
     worksheet.update(data_to_write)
+    
+    # Membersihkan cache otomatis setiap kali data diubah/disimpan
+    load_data_from_sheet.clear()
 
 # --- NAMA TAB SHEET GOOGLE SHEETS ---
 SHEET_GAJI = "Data_Gaji"
@@ -74,29 +76,32 @@ SHEET_PENGELUARAN = "Data_Pengeluaran_Lain"
 SHEET_KARYAWAN = "Master_Karyawan"
 SHEET_PEKERJAAN = "Master_Pekerjaan"
 
-# --- INISIALISASI & MIGRASI DATA SHEET ---
-df_gaji_cek = load_data_from_sheet(SHEET_GAJI, ["ID Data", "Hari", "Tanggal", "Nama", "Pekerjaan", "Upah", "Jumlah", "Total"])
-if "Harga" in df_gaji_cek.columns:
-    df_gaji_cek = df_gaji_cek.rename(columns={"Harga": "Upah"})
-if "Hari" not in df_gaji_cek.columns and len(df_gaji_cek) > 0:
-    df_gaji_cek["Hari"] = pd.to_datetime(df_gaji_cek["Tanggal"]).dt.strftime('%A').map(HARI_INDO)
-save_data_to_sheet(SHEET_GAJI, df_gaji_cek)
+# --- INISIALISASI & MIGRASI DATA SHEET (HANYA 1X SAAT PERTAMA DIBUKA) ---
+if "db_initialized" not in st.session_state:
+    df_gaji_cek = load_data_from_sheet(SHEET_GAJI, ["ID Data", "Hari", "Tanggal", "Nama", "Pekerjaan", "Upah", "Jumlah", "Total"])
+    if "Harga" in df_gaji_cek.columns:
+        df_gaji_cek = df_gaji_cek.rename(columns={"Harga": "Upah"})
+    if "Hari" not in df_gaji_cek.columns and len(df_gaji_cek) > 0:
+        df_gaji_cek["Hari"] = pd.to_datetime(df_gaji_cek["Tanggal"]).dt.strftime('%A').map(HARI_INDO)
+    save_data_to_sheet(SHEET_GAJI, df_gaji_cek)
 
-load_data_from_sheet(SHEET_KASBON, ["ID Kasbon", "Tanggal", "Nama", "Tipe", "Keterangan", "Nominal"])
-load_data_from_sheet(SHEET_PENGELUARAN, ["ID Lain", "Keterangan", "Nominal"])
+    load_data_from_sheet(SHEET_KASBON, ["ID Kasbon", "Tanggal", "Nama", "Tipe", "Keterangan", "Nominal"])
+    load_data_from_sheet(SHEET_PENGELUARAN, ["ID Lain", "Keterangan", "Nominal"])
 
-df_kar_cek = load_data_from_sheet(SHEET_KARYAWAN, ["Nama Karyawan"])
-if len(df_kar_cek) == 0:
-    df_kar_cek = pd.DataFrame({"Nama Karyawan": ["Teh Eva", "Bi Nyai", "Radi", "Ula", "Sintia", "Mang Ade", "Mang Koko", "Yoga", "Samsul"]})
-    save_data_to_sheet(SHEET_KARYAWAN, df_kar_cek)
+    df_kar_cek = load_data_from_sheet(SHEET_KARYAWAN, ["Nama Karyawan"])
+    if len(df_kar_cek) == 0:
+        df_kar_cek = pd.DataFrame({"Nama Karyawan": ["Teh Eva", "Bi Nyai", "Radi", "Ula", "Sintia", "Mang Ade", "Mang Koko", "Yoga", "Samsul"]})
+        save_data_to_sheet(SHEET_KARYAWAN, df_kar_cek)
 
-df_pek_cek = load_data_from_sheet(SHEET_PEKERJAAN, ["Jenis Pekerjaan", "Harga Per Pcs"])
-if len(df_pek_cek) == 0:
-    df_pek_cek = pd.DataFrame({
-        "Jenis Pekerjaan": ["Bungkus Patung", "Packing Styrofoam", "Bungkus Cat"],
-        "Harga Per Pcs": [150, 400, 15]
-    })
-    save_data_to_sheet(SHEET_PEKERJAAN, df_pek_cek)
+    df_pek_cek = load_data_from_sheet(SHEET_PEKERJAAN, ["Jenis Pekerjaan", "Harga Per Pcs"])
+    if len(df_pek_cek) == 0:
+        df_pek_cek = pd.DataFrame({
+            "Jenis Pekerjaan": ["Bungkus Patung", "Packing Styrofoam", "Bungkus Cat"],
+            "Harga Per Pcs": [150, 400, 15]
+        })
+        save_data_to_sheet(SHEET_PEKERJAAN, df_pek_cek)
+        
+    st.session_state.db_initialized = True
 
 # --- MEMBACA MASTER DATA ---
 df_karyawan = load_data_from_sheet(SHEET_KARYAWAN, ["Nama Karyawan"])
