@@ -402,7 +402,7 @@ with menu3:
                     st.rerun()
 
 # ==========================================
-# MENU 4: CETAK SLIP GAJI (PERSIS SEPERTI CONTOH BARU)
+# MENU 4: CETAK SLIP GAJI (ULTRA-PADAT & RAPAT ALA STRUK ASLI)
 # ==========================================
 with menu4:
     st.header("Cetak & Unduh Slip Gaji")
@@ -435,58 +435,55 @@ with menu4:
                 
                 if len(df_filter_gaji) > 0 or len(df_filter_kb) > 0:
                     baris_slip = [
-                        ("SLIP GAJI KARYAWAN", 12, "center"),
-                        ("=================================", 8, "left"),
-                        (f"Nama    : {nama_slip}", 10, "left"),
-                        (f"Periode : {tgl_mulai_slip.strftime('%d/%m/%Y')} - {tgl_selesai_slip.strftime('%d/%m/%Y')}", 10, "left"),
-                        ("=================================", 8, "left"),
-                        ("", 3, "left")
+                        ("SLIP GAJI", 11, "center"),
+                        ("=================================", 6, "left"),
+                        (f"Nama    : {nama_slip}", 9, "left"),
+                        (f"Periode : {tgl_mulai_slip.strftime('%d/%m/%Y')} - {tgl_selesai_slip.strftime('%d/%m/%Y')}", 9, "left"),
+                        ("=================================", 6, "left")
                     ]
                     
                     total_upah = 0
                     for tgl, data_harian in df_filter_gaji.groupby('Tanggal'):
                         hari_indo = HARI_INDO.get(tgl.strftime("%A"), "")
-                        baris_slip.append((f"Hari/Tgl: {hari_indo}, {tgl.strftime('%d/%m/%Y')}", 10, "left"))
+                        baris_slip.append((f"Hari/Tgl: {hari_indo}, {tgl.strftime('%d/%m/%Y')}", 9, "left"))
                         sub = 0
                         for _, row in data_harian.iterrows():
                             j, u, t = float(row['Jumlah']), float(row['Upah']), float(row['Total'])
                             u_fmt = f"Rp{u:,.0f}".replace(",", ".")
                             t_fmt = f"Rp{t:,.0f}".replace(",", ".")
                             j_fmt = f"{j:,.0f}".replace(",", ".")
-                            baris_slip.append((f"- {row['Pekerjaan']}", 10, "left"))
-                            baris_slip.append((f"    {j_fmt} pcs x {u_fmt} = {t_fmt}", 10, "left"))
+                            baris_slip.append((f"- {row['Pekerjaan']}", 9, "left"))
+                            baris_slip.append((f"    {j_fmt} pcs x {u_fmt} = {t_fmt}", 9, "left"))
                             sub += t
                         sub_fmt = f"Rp{sub:,.0f}".replace(",", ".")
-                        baris_slip.append((f"Sub-total: {sub_fmt}", 10, "left"))
-                        baris_slip.append(("", 3, "left"))
+                        baris_slip.append((f"Sub-total: {sub_fmt}", 9, "left"))
                         total_upah += sub
                         
                     tot_tambah, tot_kurang = 0, 0
                     if len(df_filter_kb) > 0:
-                        baris_slip.append(("--- CATATAN TAMBAHAN ---", 10, "left"))
+                        baris_slip.append(("--- CATATAN TAMBAHAN ---", 9, "left"))
                         for _, rkb in df_filter_kb.iterrows():
                             nom = float(rkb['Nominal'])
                             nom_fmt = f"Rp{nom:,.0f}".replace(",", ".")
                             sign = "+" if rkb['Tipe'] == "Penambahan" else "-"
-                            baris_slip.append((f" {sign} {rkb['Keterangan']} ({nom_fmt})", 10, "left"))
+                            baris_slip.append((f" {sign} {rkb['Keterangan']} ({nom_fmt})", 9, "left"))
                             if rkb['Tipe'] == "Penambahan": tot_tambah += nom
                             else: tot_kurang += nom
-                        baris_slip.append(("", 3, "left"))
                         
                     total_bersih = total_upah + tot_tambah - tot_kurang
                     tot_bersih_fmt = f"Rp {total_bersih:,.0f}".replace(",", ".")
-                    baris_slip.append(("=================================", 8, "left"))
-                    baris_slip.append((f"TOTAL GAJI DITERIMA: {tot_bersih_fmt}", 11, "left"))
-                    baris_slip.append(("=================================", 8, "left"))
+                    baris_slip.append(("=================================", 6, "left"))
+                    baris_slip.append((f"TOTAL GAJI DITERIMA: {tot_bersih_fmt}", 9, "left"))
+                    baris_slip.append(("=================================", 6, "left"))
                     
                     scale = 4
                     try:
                         font_path = "cour.ttf"
-                        font_test = ImageFont.truetype(font_path, 11 * scale)
+                        font_test = ImageFont.truetype(font_path, 9 * scale)
                     except:
                         try:
                             font_path = "arial.ttf"
-                            font_test = ImageFont.truetype(font_path, 11 * scale)
+                            font_test = ImageFont.truetype(font_path, 9 * scale)
                         except:
                             font_path = None
                             font_test = ImageFont.load_default()
@@ -495,8 +492,11 @@ with menu4:
                     dummy_draw = ImageDraw.Draw(dummy_img)
                     
                     max_w = 0
-                    total_h = 2 * scale
+                    # Tentukan line height super padat (faktor 0.85 agar rapat seperti struk kasir)
+                    line_heights = []
                     for txt, sz, align in baris_slip:
+                        h_line = int(sz * scale * 0.85)
+                        line_heights.append(h_line)
                         if font_path:
                             try:
                                 f_sz = ImageFont.truetype(font_path, sz * scale)
@@ -513,16 +513,15 @@ with menu4:
                             
                         if w_txt > max_w:
                             max_w = w_txt
-                        total_h += sz * scale
-                        
-                    canvas_w = int(max_w) + (24 * scale)
-                    canvas_h = int(total_h) + (4 * scale)
+                            
+                    canvas_w = int(max_w) + (16 * scale)
+                    canvas_h = sum(line_heights) + (4 * scale)
                     
                     img_slip = Image.new('RGB', (canvas_w, canvas_h), color=(255, 255, 255))
                     draw_slip = ImageDraw.Draw(img_slip)
                     
-                    y_s = 4 * scale
-                    for txt, sz, align in baris_slip:
+                    y_s = 2 * scale
+                    for idx, (txt, sz, align) in enumerate(baris_slip):
                         if font_path:
                             try:
                                 f_sz = ImageFont.truetype(font_path, sz * scale)
@@ -539,10 +538,10 @@ with menu4:
                                 w_line = len(txt) * sz * scale * 0.6
                             x_pos = (canvas_w - w_line) / 2
                         else:
-                            x_pos = 12 * scale
+                            x_pos = 4 * scale
                             
                         draw_slip.text((x_pos, y_s), txt, font=f_sz, fill=(0, 0, 0))
-                        y_s += sz * scale
+                        y_s += line_heights[idx]
                         
                     buf_s = io.BytesIO()
                     img_slip.save(buf_s, format="JPEG", quality=95)
