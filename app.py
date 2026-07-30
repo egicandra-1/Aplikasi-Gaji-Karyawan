@@ -402,7 +402,7 @@ with menu3:
                     st.rerun()
 
 # ==========================================
-# MENU 4: CETAK SLIP GAJI (ULTRA-PADAT & RAPAT ALA STRUK ASLI)
+# MENU 4: CETAK SLIP GAJI (RAPAT, CENTER PRESISI, SPASI PER HARI)
 # ==========================================
 with menu4:
     st.header("Cetak & Unduh Slip Gaji")
@@ -443,7 +443,13 @@ with menu4:
                     ]
                     
                     total_upah = 0
+                    first_day = True
                     for tgl, data_harian in df_filter_gaji.groupby('Tanggal'):
+                        if not first_day:
+                            baris_slip.append(("", 9, "left")) # Spasi ekstra ke-2 saat bertemu tanggal hari baru
+                            baris_slip.append(("", 9, "left"))
+                        first_day = False
+                        
                         hari_indo = HARI_INDO.get(tgl.strftime("%A"), "")
                         baris_slip.append((f"Hari/Tgl: {hari_indo}, {tgl.strftime('%d/%m/%Y')}", 9, "left"))
                         sub = 0
@@ -461,6 +467,8 @@ with menu4:
                         
                     tot_tambah, tot_kurang = 0, 0
                     if len(df_filter_kb) > 0:
+                        baris_slip.append(("", 9, "left"))
+                        baris_slip.append(("", 9, "left"))
                         baris_slip.append(("--- CATATAN TAMBAHAN ---", 9, "left"))
                         for _, rkb in df_filter_kb.iterrows():
                             nom = float(rkb['Nominal'])
@@ -472,6 +480,8 @@ with menu4:
                         
                     total_bersih = total_upah + tot_tambah - tot_kurang
                     tot_bersih_fmt = f"Rp {total_bersih:,.0f}".replace(",", ".")
+                    baris_slip.append(("", 9, "left"))
+                    baris_slip.append(("", 9, "left"))
                     baris_slip.append(("=================================", 6, "left"))
                     baris_slip.append((f"TOTAL GAJI DITERIMA: {tot_bersih_fmt}", 9, "left"))
                     baris_slip.append(("=================================", 6, "left"))
@@ -492,12 +502,11 @@ with menu4:
                     dummy_draw = ImageDraw.Draw(dummy_img)
                     
                     max_w = 0
-                    # Tentukan line height super padat (faktor 0.85 agar rapat seperti struk kasir)
                     line_heights = []
                     for txt, sz, align in baris_slip:
-                        h_line = int(sz * scale * 0.85)
+                        h_line = int(sz * scale * 0.85) if txt != "" else int(9 * scale * 0.4)
                         line_heights.append(h_line)
-                        if font_path:
+                        if font_path and txt != "":
                             try:
                                 f_sz = ImageFont.truetype(font_path, sz * scale)
                             except:
@@ -505,12 +514,15 @@ with menu4:
                         else:
                             f_sz = font_test
                             
-                        try:
-                            bbox = dummy_draw.textbbox((0, 0), txt, font=f_sz)
-                            w_txt = bbox[2] - bbox[0]
-                        except:
-                            w_txt = len(txt) * sz * scale * 0.6
-                            
+                        if txt == "":
+                            w_txt = 0
+                        else:
+                            try:
+                                bbox = dummy_draw.textbbox((0, 0), txt, font=f_sz)
+                                w_txt = bbox[2] - bbox[0]
+                            except:
+                                w_txt = len(txt) * sz * scale * 0.6
+                                
                         if w_txt > max_w:
                             max_w = w_txt
                             
@@ -522,25 +534,27 @@ with menu4:
                     
                     y_s = 2 * scale
                     for idx, (txt, sz, align) in enumerate(baris_slip):
-                        if font_path:
-                            try:
-                                f_sz = ImageFont.truetype(font_path, sz * scale)
-                            except:
+                        if txt != "":
+                            if font_path:
+                                try:
+                                    f_sz = ImageFont.truetype(font_path, sz * scale)
+                                except:
+                                    f_sz = font_test
+                            else:
                                 f_sz = font_test
-                        else:
-                            f_sz = font_test
+                                
+                            if align == "center":
+                                try:
+                                    bbox = draw_slip.textbbox((0, 0), txt, font=f_sz)
+                                    w_line = bbox[2] - bbox[0]
+                                except:
+                                    w_line = len(txt) * sz * scale * 0.6
+                                x_pos = (canvas_w - w_line) / 2
+                            else:
+                                x_pos = 4 * scale
+                                
+                            draw_slip.text((x_pos, y_s), txt, font=f_sz, fill=(0, 0, 0))
                             
-                        if align == "center":
-                            try:
-                                bbox = draw_slip.textbbox((0, 0), txt, font=f_sz)
-                                w_line = bbox[2] - bbox[0]
-                            except:
-                                w_line = len(txt) * sz * scale * 0.6
-                            x_pos = (canvas_w - w_line) / 2
-                        else:
-                            x_pos = 4 * scale
-                            
-                        draw_slip.text((x_pos, y_s), txt, font=f_sz, fill=(0, 0, 0))
                         y_s += line_heights[idx]
                         
                     buf_s = io.BytesIO()
