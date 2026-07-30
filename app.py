@@ -28,14 +28,12 @@ st.markdown("""
         display: none !important;
     }
     
-    /* Animasi memudar otomatis KHUSUS untuk notifikasi menu lain (bukan untuk resume kas) */
+    /* Animasi memudar otomatis KHUSUS untuk notifikasi menu lain */
     @keyframes fadeOutAlert {
         0% { opacity: 1; }
         80% { opacity: 1; }
         100% { opacity: 0; visibility: hidden; }
     }
-    
-    /* Pengecualian agar notifikasi di Laporan Resume Kas TIDAK Ikut Memudar */
     div[data-testid="stVerticalBlock"] div[data-testid="stAlert"] {
         animation: none !important;
     }
@@ -404,7 +402,7 @@ with menu3:
                     st.rerun()
 
 # ==========================================
-# MENU 4: CETAK SLIP GAJI
+# MENU 4: CETAK SLIP GAJI (FONT BESAR & MUDAH DIBACA)
 # ==========================================
 with menu4:
     st.header("Cetak & Unduh Slip Gaji")
@@ -427,7 +425,7 @@ with menu4:
             
         nama_slip_pilihan = st.selectbox("Pilih Nama Karyawan", ["Semua Karyawan"] + daftar_karyawan, key="slip_nama")
         
-        if st.button("🖨️ Buat Slip Gaji (4K Ultra HD)", type="primary"):
+        if st.button("🖨️ Buat Slip Gaji (HD Jelas & Mudah Dibaca)", type="primary"):
             df_gaji['Tanggal'] = pd.to_datetime(df_gaji['Tanggal']).dt.date
             target_karyawan = daftar_karyawan if nama_slip_pilihan == "Semua Karyawan" else [nama_slip_pilihan]
             
@@ -437,62 +435,75 @@ with menu4:
                 
                 if len(df_filter_gaji) > 0 or len(df_filter_kb) > 0:
                     baris_gambar_info = [
-                        ("       SLIP GAJI", True),
-                        ("================================", False),
-                        (f"Nama    : {nama_slip}", True),
-                        (f"Periode : {tgl_mulai_slip.strftime('%d/%m/%Y')} - {tgl_selesai_slip.strftime('%d/%m/%Y')}", True),
-                        ("================================", False),
-                        ("", False)
+                        ("SLIP GAJI KARYAWAN", True, 36),
+                        ("==========================================", False, 20),
+                        (f"Nama Karyawan : {nama_slip}", True, 26),
+                        (f"Periode Waktu : {tgl_mulai_slip.strftime('%d/%m/%Y')} - {tgl_selesai_slip.strftime('%d/%m/%Y')}", True, 24),
+                        ("==========================================", False, 20),
+                        ("", False, 15)
                     ]
                     total_upah = 0
                     for tgl, data_harian in df_filter_gaji.groupby('Tanggal'):
-                        baris_gambar_info.append((f"Hari/Tgl: {HARI_INDO.get(tgl.strftime('%A'), '')}, {tgl.strftime('%d/%m/%Y')}", True))
+                        baris_gambar_info.append((f"Hari/Tgl: {HARI_INDO.get(tgl.strftime('%A'), '')}, {tgl.strftime('%d/%m/%Y')}", True, 22))
                         sub = 0
                         for _, row in data_harian.iterrows():
                             j, u, t = float(row['Jumlah']), float(row['Upah']), float(row['Total'])
-                            baris_gambar_info.append((f"- {row['Pekerjaan']}", False))
-                            baris_gambar_info.append((f"  {j:,.0f} pcs x Rp{u:,.0f} = Rp{t:,.0f}".replace(",", "."), False))
+                            baris_gambar_info.append((f"• {row['Pekerjaan']}", False, 20))
+                            baris_gambar_info.append((f"  {j:,.0f} pcs x Rp{u:,.0f} = Rp{t:,.0f}".replace(",", "."), False, 20))
                             sub += t
-                        baris_gambar_info.append((f"Sub-total: Rp{sub:,.0f}".replace(",", "."), False))
-                        baris_gambar_info.append(("", False))
+                        baris_gambar_info.append((f"Sub-total Hari Ini: Rp{sub:,.0f}".replace(",", "."), True, 20))
+                        baris_gambar_info.append(("", False, 10))
                         total_upah += sub
                     
                     tot_tambah, tot_kurang = 0, 0
                     if len(df_filter_kb) > 0:
-                        baris_gambar_info.append(("--- CATATAN TAMBAHAN ---", True))
+                        baris_gambar_info.append(("--- CATATAN TAMBAHAN (KASBON/BONUS) ---", True, 20))
                         for _, rkb in df_filter_kb.iterrows():
                             nom = float(rkb['Nominal'])
                             sign = "+" if rkb['Tipe'] == "Penambahan" else "-"
-                            baris_gambar_info.append((f"{sign} {rkb['Keterangan']} (Rp {nom:,.0f})".replace(",", "."), False))
+                            baris_gambar_info.append((f"{sign} {rkb['Keterangan']} (Rp {nom:,.0f})".replace(",", "."), False, 20))
                             if rkb['Tipe'] == "Penambahan": tot_tambah += nom
                             else: tot_kurang += nom
-                        baris_gambar_info.append(("", False))
+                        baris_gambar_info.append(("", False, 10))
                     
                     total_bersih = total_upah + tot_tambah - tot_kurang
-                    baris_gambar_info.append(("================================", False))
-                    baris_gambar_info.append((f"TOTAL GAJI DITERIMA: Rp {total_bersih:,.0f}".replace(",", "."), True))
-                    baris_gambar_info.append(("================================", False))
+                    baris_gambar_info.append(("==========================================", False, 20))
+                    baris_gambar_info.append((f"TOTAL GAJI DITERIMA: Rp {total_bersih:,.0f}".replace(",", "."), True, 30))
+                    baris_gambar_info.append(("==========================================", False, 20))
                     
-                    scale = 4
-                    img = Image.new('RGB', (420 * scale, ((len(baris_gambar_info) * 20) + 40) * scale), color=(255, 255, 255))
+                    # Render Gambar HD dengan Font Proporsional Besar
+                    scale = 2
+                    base_width = 800
+                    total_height = sum([sz for _, _, sz in baris_gambar_info]) + 80
+                    
+                    img = Image.new('RGB', (base_width * scale, total_height * scale), color=(255, 255, 255))
                     draw = ImageDraw.Draw(img)
-                    font = ImageFont.load_default()
                     
-                    y = 20 * scale
-                    for txt, is_b in baris_gambar_info:
-                        draw.text((20 * scale, y), txt, font=font, fill=(0, 0, 0))
-                        y += 20 * scale
+                    try:
+                        font_default = ImageFont.load_default()
+                    except:
+                        font_default = None
+                        
+                    y = 40 * scale
+                    for txt, is_b, sz in baris_gambar_info:
+                        try:
+                            font_used = ImageFont.truetype("arial.ttf", sz * scale) if font_default else font_default
+                        except:
+                            font_used = font_default
+                            
+                        draw.text((40 * scale, y), txt, font=font_used, fill=(10, 10, 10))
+                        y += sz * scale
                     
                     buf = io.BytesIO()
                     img.save(buf, format="JPEG", quality=95)
                     byte_im = buf.getvalue()
                     
                     st.subheader(f"📄 Slip Gaji: {nama_slip}")
-                    st.image(byte_im, width=400)
+                    st.image(byte_im, width=650)
                     st.download_button(f"📥 Unduh Slip - {nama_slip}", data=byte_im, file_name=f"Slip_{nama_slip}.jpg", mime="image/jpeg", key=f"dl_{nama_slip}")
 
 # ==========================================
-# MENU 5: LAPORAN RESUME KAS
+# MENU 5: LAPORAN RESUME KAS (FONT BESAR & MUDAH DIBACA)
 # ==========================================
 with menu5:
     st.header("📊 Laporan Resume Kas")
@@ -599,58 +610,75 @@ with menu5:
         total_pengeluaran_keseluruhan = total_gaji_semua + total_pengeluaran_lain
         sisa_uang = tarik_uang - total_pengeluaran_keseluruhan
         
-        scale = 4
-        w, h = 460 * scale, (350 + (len(daftar_karyawan) * 24) + (len(df_lain_all) * 24)) * scale
-        img = Image.new('RGB', (w, h), color=(255, 255, 255))
-        draw = ImageDraw.Draw(img)
-        font = ImageFont.load_default()
-        
-        y = 20 * scale
-        draw.text((20 * scale, y), "LAPORAN RESUME KAS & GAJI", fill=(0, 0, 0), font=font)
-        y += 22 * scale
-        draw.text((20 * scale, y), f"Periode: {tgl_mulai_res.strftime('%d/%m/%Y')} - {tgl_selesai_res.strftime('%d/%m/%Y')}", fill=(80, 80, 80), font=font)
-        y += 35 * scale
-        
-        draw.text((20 * scale, y), "A. RINCIAN GAJI KARYAWAN", fill=(0, 0, 0), font=font)
-        y += 25 * scale
+        # Susun baris teks ringkasan akhir dengan ukuran font yang proporsional
+        baris_resume = [
+            ("LAPORAN RESUME KAS & GAJI", True, 34),
+            (f"Periode: {tgl_mulai_res.strftime('%d/%m/%Y')} - {tgl_selesai_res.strftime('%d/%m/%Y')}", False, 22),
+            ("==========================================", False, 20),
+            ("A. RINCIAN GAJI KARYAWAN", True, 24),
+            ("", False, 10)
+        ]
         
         for k in daftar_karyawan:
             val = rekap_gaji.get(k, 0)
-            draw.text((20 * scale, y), f"- {k}: Rp {val:,.0f}".replace(",", "."), fill=(0, 0, 0), font=font)
-            y += 24 * scale
+            baris_resume.append((f"• {k}: Rp {val:,.0f}".replace(",", "."), False, 20))
             
-        draw.text((20 * scale, y), f"TOTAL GAJI KARYAWAN: Rp {total_gaji_semua:,.0f}".replace(",", "."), fill=(0, 0, 0), font=font)
-        y += 40 * scale
-        
-        draw.text((20 * scale, y), "B. PENGELUARAN LAIN-LAIN", fill=(0, 0, 0), font=font)
-        y += 25 * scale
+        baris_resume.extend([
+            ("", False, 10),
+            (f"TOTAL GAJI KARYAWAN: Rp {total_gaji_semua:,.0f}".replace(",", "."), True, 22),
+            ("==========================================", False, 20),
+            ("B. PENGELUARAN LAIN-LAIN", True, 24),
+            ("", False, 10)
+        ])
         
         if len(df_lain_all) > 0:
             for _, r in df_lain_all.iterrows():
-                draw.text((20 * scale, y), f"- {r['Keterangan']}: Rp {float(r['Nominal']):,.0f}".replace(",", "."), fill=(0, 0, 0), font=font)
-                y += 24 * scale
+                baris_resume.append((f"• {r['Keterangan']}: Rp {float(r['Nominal']):,.0f}".replace(",", "."), False, 20))
         else:
-            draw.text((20 * scale, y), "(Tidak ada pengeluaran lain)", fill=(120, 120, 120), font=font)
-            y += 24 * scale
+            baris_resume.append(("(Tidak ada pengeluaran lain)", False, 20))
             
-        draw.text((20 * scale, y), f"TOTAL PENGELUARAN LAIN: Rp {total_pengeluaran_lain:,.0f}".replace(",", "."), fill=(0, 0, 0), font=font)
-        y += 40 * scale
+        baris_resume.extend([
+            ("", False, 10),
+            (f"TOTAL PENGELUARAN LAIN: Rp {total_pengeluaran_lain:,.0f}".replace(",", "."), True, 22),
+            ("==========================================", False, 20),
+            ("C. RINGKASAN KAS KEUANGAN", True, 24),
+            ("", False, 10),
+            (f"Total Penarikan Cash : Rp {tarik_uang:,.0f}".replace(",", "."), False, 20),
+            (f"Total Pengeluaran    : Rp {total_pengeluaran_keseluruhan:,.0f}".replace(",", "."), False, 20),
+            ("------------------------------------------", False, 20),
+            (f"SISA SALDO KAS       : Rp {sisa_uang:,.0f}".replace(",", "."), True, 26),
+            ("==========================================", False, 20)
+        ])
         
-        draw.text((20 * scale, y), "C. RINGKASAN KAS", fill=(0, 0, 0), font=font)
-        y += 25 * scale
-        draw.text((20 * scale, y), f"Total Penarikan Cash: Rp {tarik_uang:,.0f}".replace(",", "."), fill=(0, 0, 0), font=font)
-        y += 24 * scale
-        draw.text((20 * scale, y), f"Total Pengeluaran Keseluruhan: Rp {total_pengeluaran_keseluruhan:,.0f}".replace(",", "."), fill=(0, 0, 0), font=font)
-        y += 24 * scale
-        draw.text((20 * scale, y), f"SISA SALDO KAS: Rp {sisa_uang:,.0f}".replace(",", "."), fill=(0, 0, 0), font=font)
+        scale = 2
+        base_width = 800
+        total_height_res = sum([sz for _, _, sz in baris_resume]) + 80
+        
+        img_res = Image.new('RGB', (base_width * scale, total_height_res * scale), color=(255, 255, 255))
+        draw_res = ImageDraw.Draw(img_res)
+        
+        try:
+            font_default = ImageFont.load_default()
+        except:
+            font_default = None
             
-        buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=95)
-        byte_resume = buf.getvalue()
+        y_res = 40 * scale
+        for txt, is_b, sz in baris_resume:
+            try:
+                font_used = ImageFont.truetype("arial.ttf", sz * scale) if font_default else font_default
+            except:
+                font_used = font_default
+                
+            draw_res.text((40 * scale, y_res), txt, font=font_used, fill=(10, 10, 10))
+            y_res += sz * scale
+            
+        buf_res = io.BytesIO()
+        img_res.save(buf_res, format="JPEG", quality=95)
+        byte_resume = buf_res.getvalue()
         
         st.markdown("---")
         st.subheader("👁️ Ringkasan Akhir")
-        st.image(byte_resume, width=460)
+        st.image(byte_resume, width=650)
         st.download_button("📥 Unduh Resume", data=byte_resume, file_name=f"Resume_{tgl_mulai_res.strftime('%d%m%Y')}.jpg", mime="image/jpeg")
 
 # ==========================================
