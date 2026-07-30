@@ -279,20 +279,28 @@ with menu2:
                     def save_callback(t=tgl, h=hari, orig_ids=df_harian['ID Data'].tolist()):
                         edited_df = st.session_state[f"editor_{t}_{h}"]
                         
-                        # Konversi aman untuk kolom Upah dan Jumlah
-                        edited_df['Upah'] = pd.to_numeric(edited_df['Upah'], errors='coerce').fillna(0)
-                        edited_df['Jumlah'] = pd.to_numeric(edited_df['Jumlah'], errors='coerce').fillna(0)
+                        # Menggunakan indeks kolom (posisi) agar aman dari KeyError nama kolom
+                        # Kolom: 0=ID Data, 1=Nama, 2=Pekerjaan, 3=Upah, 4=Jumlah, 5=Total
+                        col_upah = edited_df.columns[3]
+                        col_jumlah = edited_df.columns[4]
                         
-                        edited_df['Total'] = edited_df['Jumlah'] * edited_df['Upah']
-                        edited_df['Hari'] = h
-                        edited_df['Tanggal'] = t
+                        edited_df[col_upah] = pd.to_numeric(edited_df[col_upah], errors='coerce').fillna(0)
+                        edited_df[col_jumlah] = pd.to_numeric(edited_df[col_jumlah], errors='coerce').fillna(0)
                         
-                        for idx, row in edited_df.iterrows():
-                            if pd.isna(row["ID Data"]) or str(row["ID Data"]).strip() == "":
-                                edited_df.at[idx, "ID Data"] = f"ID-{int(time.time())}-{idx}"
+                        # Buat dataframe final terstandarisasi
+                        df_processed = pd.DataFrame({
+                            'ID Data': edited_df.iloc[:, 0].apply(lambda x: f"ID-{int(time.time())}" if pd.isna(x) or str(x).strip() == "" else str(x)),
+                            'Hari': h,
+                            'Tanggal': t,
+                            'Nama': edited_df.iloc[:, 1],
+                            'Pekerjaan': edited_df.iloc[:, 2],
+                            'Upah': edited_df[col_upah],
+                            'Jumlah': edited_df[col_jumlah],
+                            'Total': edited_df[col_jumlah] * edited_df[col_upah]
+                        })
                         
                         df_sisa = st.session_state.df_gaji[~st.session_state.df_gaji['ID Data'].isin(orig_ids)]
-                        df_final = pd.concat([df_sisa, edited_df]).sort_values(by="Tanggal").reset_index(drop=True)
+                        df_final = pd.concat([df_sisa, df_processed]).sort_values(by="Tanggal").reset_index(drop=True)
                         if 'Date_Obj' in df_final.columns: df_final = df_final.drop(columns=['Date_Obj'])
                         
                         st.session_state.df_gaji = df_final
