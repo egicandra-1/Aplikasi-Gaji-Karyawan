@@ -1,10 +1,11 @@
 import streamlit as st
 import pandas as pd
-import os
 import time
 from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont
 import io
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 
 # --- KAMUS HARI BAHASA INDONESIA ---
 HARI_INDO = {
@@ -18,44 +19,91 @@ URUTAN_HARI = {"Senin": 1, "Selasa": 2, "Rabu": 3, "Kamis": 4, "Jumat": 5, "Sabt
 st.set_page_config(page_title="Sistem Penggajian", layout="wide", page_icon="📝")
 st.title("Aplikasi Rekap Gaji Karyawan")
 
-# --- NAMA FILE DATABASE ---
-FILE_GAJI = "data_gaji.csv"
-FILE_KASBON = "data_kasbon_bonus.csv"
-FILE_PENGELUARAN_LAIN = "data_pengeluaran_lain.csv"
-FILE_KARYAWAN = "master_karyawan.csv"
-FILE_PEKERJAAN = "master_pekerjaan.csv"
+# --- KONEKSI KE GOOGLE SHEETS ---
+@st.cache_resource
+def init_connection():
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    try:
+        # Untuk dijalankan di komputer lokal menggunakan file credentials.json
+        creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+    except:
+        # Untuk dijalankan di Streamlit Cloud (mengambil dari Secrets)
+        import json
+        dict_creds = dict(st.secrets["gcp_service_account"])
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(dict_creds, scope)
+    
+    client = gspread.authorize(creds)
+    return client
 
-# --- INISIALISASI DATABASE ---
-if not os.path.exists(FILE_GAJI):
-    pd.DataFrame(columns=["ID Data", "Hari", "Tanggal", "Nama", "Pekerjaan", "Upah", "Jumlah", "Total"]).to_csv(FILE_GAJI, index=False)
-else:
-    df_cek = pd.read_csv(FILE_GAJI)
-    if "Harga" in df_cek.columns:
-        df_cek = df_cek.rename(columns={"Harga": "Upah"})
-    if "Hari" not in df_cek.columns and len(df_cek) > 0:
-        df_cek.insert(1, "Hari", pd.to_datetime(df_cek["Tanggal"]).dt.strftime('%A').map(HARI_INDO))
-    df_cek.to_csv(FILE_GAJI, index=False)
+client = init_connection()
+spreadsheet = client.open("Database_Aplikasi_Gaji")
 
-if not os.path.exists(FILE_KASBON):
-    pd.DataFrame(columns=["ID Kasbon", "Tanggal", "Nama", "Tipe", "Keterangan", "Nominal"]).to_csv(FILE_KASBON, index=False)
+# --- FUNGSI BANTU GOOGLE SHEETS ---
+def load_data_from_sheet(nama_sheet, kolom_default):
+    try:
+        worksheet = spreadsheet.worksheet(nama_sheet)
+        data = worksheet.get_all_records()
+        if len(data) > 0:
+            df = pd.DataFrame(data)
+            for col in kolom_default:
+                if col not in df.columns:
+                    df[col] = ""
+            return df
+        else:
+            return pd.DataFrame(columns=kolom_default)
+    except gspread.exceptions.WorksheetNotFound:
+        worksheet = spreadsheet.add_worksheet(title=nama_sheet, rows="100", cols="20")
+        df_kosong = pd.DataFrame(columns=kolom_default)
+        worksheet.update([df_kosong.columns.values.tolist()] + df_kosong.values.tolist())
+        return df_kosong
 
-if not os.path.exists(FILE_PENGELUARAN_LAIN):
-    pd.DataFrame(columns=["ID Lain", "Keterangan", "Nominal"]).to_csv(FILE_PENGELUARAN_LAIN, index=False)
+def save_data_to_sheet(nama_sheet, df):
+    try:
+        worksheet = spreadsheet.worksheet(nama_sheet)
+    except gspread.exceptions.WorksheetNotFound:
+        worksheet = spreadsheet.add_worksheet(title=nama_sheet, rows="100", cols="20")
+    
+    worksheet.clear()
+    data_to_write = [df.columns.values.tolist()] + df.fillna("").values.tolist()
+    worksheet.update(data_to_write)
 
-if not os.path.exists(FILE_KARYAWAN):
-    pd.DataFrame({"Nama Karyawan": ["Teh Eva", "Bi Nyai", "Radi", "Ula", "Sintia", "Mang Ade", "Mang Koko", "Yoga", "Samsul"]}).to_csv(FILE_KARYAWAN, index=False)
-if not os.path.exists(FILE_PEKERJAAN):
-    pd.DataFrame({
+# --- NAMA TAB SHEET GOOGLE SHEETS ---
+SHEET_GAJI = "Data_Gaji"
+SHEET_KASBON = "Data_Kasbon_Bonus"
+SHEET_PENGELUARAN = "Data_Pengeluaran_Lain"
+SHEET_KARYAWAN = "Master_Karyawan"
+SHEET_PEKERJAAN = "Master_Pekerjaan"
+
+# --- INISIALISASI & MIGRASI DATA SHEET ---
+df_gaji_cek = load_data_from_sheet(SHEET_GAJI, ["ID Data", "Hari", "Tanggal", "Nama", "Pekerjaan", "Upah", "Jumlah", "Total"])
+if "Harga" in df_gaji_cek.columns:
+    df_gaji_cek = df_gaji_cek.rename(columns={"Harga": "Upah"})
+if "Hari" not in df_gaji_cek.columns and len(df_gaji_cek) > 0:
+    df_gaji_cek["Hari"] = pd.to_datetime(df_gaji_cek["Tanggal"]).dt.strftime('%A').map(HARI_INDO)
+save_data_to_sheet(SHEET_GAJI, df_gaji_cek)
+
+load_data_from_sheet(SHEET_KASBON, ["ID Kasbon", "Tanggal", "Nama", "Tipe", "Keterangan", "Nominal"])
+load_data_from_sheet(SHEET_PENGELUARAN, ["ID Lain", "Keterangan", "Nominal"])
+
+df_kar_cek = load_data_from_sheet(SHEET_KARYAWAN, ["Nama Karyawan"])
+if len(df_kar_cek) == 0:
+    df_kar_cek = pd.DataFrame({"Nama Karyawan": ["Teh Eva", "Bi Nyai", "Radi", "Ula", "Sintia", "Mang Ade", "Mang Koko", "Yoga", "Samsul"]})
+    save_data_to_sheet(SHEET_KARYAWAN, df_kar_cek)
+
+df_pek_cek = load_data_from_sheet(SHEET_PEKERJAAN, ["Jenis Pekerjaan", "Harga Per Pcs"])
+if len(df_pek_cek) == 0:
+    df_pek_cek = pd.DataFrame({
         "Jenis Pekerjaan": ["Bungkus Patung", "Packing Styrofoam", "Bungkus Cat"],
         "Harga Per Pcs": [150, 400, 15]
-    }).to_csv(FILE_PEKERJAAN, index=False)
+    })
+    save_data_to_sheet(SHEET_PEKERJAAN, df_pek_cek)
 
 # --- MEMBACA MASTER DATA ---
-df_karyawan = pd.read_csv(FILE_KARYAWAN)
-df_pekerjaan = pd.read_csv(FILE_PEKERJAAN)
-daftar_karyawan = df_karyawan["Nama Karyawan"].tolist()
-daftar_pekerjaan = df_pekerjaan["Jenis Pekerjaan"].tolist()
-tarif_pekerjaan = dict(zip(df_pekerjaan["Jenis Pekerjaan"], df_pekerjaan["Harga Per Pcs"]))
+df_karyawan = load_data_from_sheet(SHEET_KARYAWAN, ["Nama Karyawan"])
+df_pekerjaan = load_data_from_sheet(SHEET_PEKERJAAN, ["Jenis Pekerjaan", "Harga Per Pcs"])
+daftar_karyawan = df_karyawan["Nama Karyawan"].dropna().tolist()
+daftar_pekerjaan = df_pekerjaan["Jenis Pekerjaan"].dropna().tolist()
+tarif_pekerjaan = dict(zip(df_pekerjaan["Jenis Pekerjaan"], pd.to_numeric(df_pekerjaan["Harga Per Pcs"], errors='coerce').fillna(0)))
 
 # --- INISIALISASI SESSION STATE ---
 if "pesan_notif" not in st.session_state:
@@ -91,12 +139,12 @@ def simpan_otomatis_via_enter():
             "Total": total
         }
         
-        df_lama = pd.read_csv(FILE_GAJI)
+        df_lama = load_data_from_sheet(SHEET_GAJI, ["ID Data", "Hari", "Tanggal", "Nama", "Pekerjaan", "Upah", "Jumlah", "Total"])
         if "Harga" in df_lama.columns:
             df_lama = df_lama.rename(columns={"Harga": "Upah"})
             
         df_simpan = pd.concat([df_lama, pd.DataFrame([data_baru])], ignore_index=True)
-        df_simpan.to_csv(FILE_GAJI, index=False)
+        save_data_to_sheet(SHEET_GAJI, df_simpan)
         
         jml_fmt = f"{jumlah:,.0f}".replace(",", ".")
         st.session_state.pesan_tipe = "success"
@@ -170,7 +218,7 @@ with menu1:
 # ==========================================
 with menu2:
     st.header("Database Riwayat Pekerjaan (Per Hari)")
-    df_gaji = pd.read_csv(FILE_GAJI)
+    df_gaji = load_data_from_sheet(SHEET_GAJI, ["ID Data", "Hari", "Tanggal", "Nama", "Pekerjaan", "Upah", "Jumlah", "Total"])
     if "Harga" in df_gaji.columns:
         df_gaji = df_gaji.rename(columns={"Harga": "Upah"})
     
@@ -197,21 +245,22 @@ with menu2:
                     kolom_tampil = ["Hari", "Tanggal", "Nama", "Pekerjaan", "Upah", "Jumlah", "Total"]
                     df_tabel_bersih = df_harian[kolom_tampil].copy()
                     
-                    df_tabel_bersih['Upah'] = df_tabel_bersih['Upah'].apply(lambda x: f"Rp {x:,.0f}".replace(",", "."))
-                    df_tabel_bersih['Total'] = df_tabel_bersih['Total'].apply(lambda x: f"Rp {x:,.0f}".replace(",", "."))
+                    df_tabel_bersih['Upah'] = pd.to_numeric(df_tabel_bersih['Upah'], errors='coerce').fillna(0).apply(lambda x: f"Rp {x:,.0f}".replace(",", "."))
+                    df_tabel_bersih['Total'] = pd.to_numeric(df_tabel_bersih['Total'], errors='coerce').fillna(0).apply(lambda x: f"Rp {x:,.0f}".replace(",", "."))
                     
                     df_harian_edit = st.data_editor(df_tabel_bersih, num_rows="dynamic", use_container_width=True, key=f"edit_{tgl}_{hari}")
                     
                     if not df_tabel_bersih.equals(df_harian_edit):
-                        df_harian_edit['Upah'] = df_harian_edit['Upah'].astype(str).str.replace("Rp", "").str.replace(".", "").str.strip().astype(float)
-                        df_harian_edit['Jumlah'] = df_harian_edit['Jumlah'].astype(float)
+                        df_harian_edit['Upah'] = df_harian_edit['Upah'].astype(str).str.replace("Rp", "").str.replace(".", "").str.strip()
+                        df_harian_edit['Upah'] = pd.to_numeric(df_harian_edit['Upah'], errors='coerce').fillna(0)
+                        df_harian_edit['Jumlah'] = pd.to_numeric(df_harian_edit['Jumlah'], errors='coerce').fillna(0)
                         df_harian_edit['Total'] = df_harian_edit['Jumlah'] * df_harian_edit['Upah']
                         
                         df_harian_edit['ID Data'] = df_harian['ID Data'].values[:len(df_harian_edit)]
                         
                         df_sisa = df_gaji[~df_gaji['ID Data'].isin(df_harian['ID Data'])]
                         df_final = pd.concat([df_sisa, df_harian_edit]).sort_values(by="Tanggal").reset_index(drop=True)
-                        df_final.to_csv(FILE_GAJI, index=False)
+                        save_data_to_sheet(SHEET_GAJI, df_final)
                         st.toast(f"Perubahan untuk tanggal {tgl} tersimpan otomatis! 💾", icon="✅")
                         st.rerun()
         else:
@@ -247,7 +296,7 @@ with menu3:
             submitted_kb = st.form_submit_button("💾 Simpan Data", type="primary", use_container_width=True)
             if submitted_kb:
                 if nominal_kb is not None and nominal_kb > 0 and ket_kb.strip() != "":
-                    df_kb_lama = pd.read_csv(FILE_KASBON)
+                    df_kb_lama = load_data_from_sheet(SHEET_KASBON, ["ID Kasbon", "Tanggal", "Nama", "Tipe", "Keterangan", "Nominal"])
                     baris_baru = {
                         "ID Kasbon": f"KB-{int(time.time())}",
                         "Tanggal": tgl_kb.strftime("%Y-%m-%d"),
@@ -257,7 +306,7 @@ with menu3:
                         "Nominal": nominal_kb
                     }
                     df_kb_baru = pd.concat([df_kb_lama, pd.DataFrame([baris_baru])], ignore_index=True)
-                    df_kb_baru.to_csv(FILE_KASBON, index=False)
+                    save_data_to_sheet(SHEET_KASBON, df_kb_baru)
                     st.session_state.tipe_kb = "success"
                     st.session_state.pesan_kb = f"✅ Berhasil menyimpan {tipe_kb} untuk {nama_kb} sebesar Rp {nominal_kb:,.0f}!".replace(",", ".")
                     st.rerun()
@@ -278,7 +327,7 @@ with menu3:
 
         st.markdown("---")
         st.subheader("📋 Riwayat Penambahan & Pengurangan (Auto-Save)")
-        df_kasbon_all = pd.read_csv(FILE_KASBON)
+        df_kasbon_all = load_data_from_sheet(SHEET_KASBON, ["ID Kasbon", "Tanggal", "Nama", "Tipe", "Keterangan", "Nominal"])
         if len(df_kasbon_all) > 0:
             filter_nama_kb = st.selectbox("🔍 Filter riwayat berdasarkan karyawan:", ["Semua Karyawan"] + daftar_karyawan, key="filter_kb")
             if filter_nama_kb == "Semua Karyawan":
@@ -288,16 +337,17 @@ with menu3:
                 
             if len(df_kb_tampil) > 0:
                 df_kb_tampil_fmt = df_kb_tampil.copy()
-                df_kb_tampil_fmt['Nominal'] = df_kb_tampil_fmt['Nominal'].apply(lambda x: f"Rp {x:,.0f}".replace(",", "."))
+                df_kb_tampil_fmt['Nominal'] = pd.to_numeric(df_kb_tampil_fmt['Nominal'], errors='coerce').fillna(0).apply(lambda x: f"Rp {x:,.0f}".replace(",", "."))
                 
                 df_kb_edit = st.data_editor(df_kb_tampil_fmt, num_rows="dynamic", use_container_width=True, key="edit_tabel_kb")
                 
                 if not df_kb_tampil_fmt.equals(df_kb_edit):
-                    df_kb_edit['Nominal'] = df_kb_edit['Nominal'].astype(str).str.replace("Rp", "").str.replace(".", "").str.strip().astype(float)
+                    df_kb_edit['Nominal'] = df_kb_edit['Nominal'].astype(str).str.replace("Rp", "").str.replace(".", "").str.strip()
+                    df_kb_edit['Nominal'] = pd.to_numeric(df_kb_edit['Nominal'], errors='coerce').fillna(0)
                     
                     df_kb_sisa = df_kasbon_all[~df_kasbon_all['ID Kasbon'].isin(df_kb_tampil['ID Kasbon'])]
                     df_kb_final = pd.concat([df_kb_sisa, df_kb_edit]).sort_values(by="Tanggal").reset_index(drop=True)
-                    df_kb_final.to_csv(FILE_KASBON, index=False)
+                    save_data_to_sheet(SHEET_KASBON, df_kb_final)
                     st.toast("Perubahan data tersimpan otomatis! 💾", icon="✅")
                     st.rerun()
             else:
@@ -306,14 +356,14 @@ with menu3:
             st.info("Belum ada data penambahan atau pengurangan yang tercatat.")
 
 # ==========================================
-# MENU 4: CETAK SLIP GAJI (SUPPORT SEMUA KARYAWAN & CAPTION)
+# MENU 4: CETAK SLIP GAJI
 # ==========================================
 with menu4:
     st.header("Cetak & Unduh Slip Gaji")
-    df_gaji = pd.read_csv(FILE_GAJI)
+    df_gaji = load_data_from_sheet(SHEET_GAJI, ["ID Data", "Hari", "Tanggal", "Nama", "Pekerjaan", "Upah", "Jumlah", "Total"])
     if "Harga" in df_gaji.columns:
         df_gaji = df_gaji.rename(columns={"Harga": "Upah"})
-    df_kasbon = pd.read_csv(FILE_KASBON)
+    df_kasbon = load_data_from_sheet(SHEET_KASBON, ["ID Kasbon", "Tanggal", "Nama", "Tipe", "Keterangan", "Nominal"])
     
     if len(df_gaji) > 0 and len(daftar_karyawan) > 0:
         col_a, col_b = st.columns(2)
@@ -365,13 +415,17 @@ with menu4:
                             
                             subtotal = 0
                             for _, row in data_harian.iterrows():
-                                jml_format = f"{row['Jumlah']:,.0f}".replace(",", ".")
-                                upah_format = f"{row['Upah']:,.0f}".replace(",", ".")
-                                total_format = f"{row['Total']:,.0f}".replace(",", ".")
+                                jml_val = float(row['Jumlah']) if pd.notnull(row['Jumlah']) else 0
+                                upah_val = float(row['Upah']) if pd.notnull(row['Upah']) else 0
+                                tot_val = float(row['Total']) if pd.notnull(row['Total']) else (jml_val * upah_val)
+                                
+                                jml_format = f"{jml_val:,.0f}".replace(",", ".")
+                                upah_format = f"{upah_val:,.0f}".replace(",", ".")
+                                total_format = f"{tot_val:,.0f}".replace(",", ".")
                                 
                                 baris_gambar_info.append((f"- {row['Pekerjaan']}", False))
                                 baris_gambar_info.append((f"  {jml_format} pcs x Rp{upah_format} = Rp{total_format}", False))
-                                subtotal += row['Total']
+                                subtotal += tot_val
                             
                             subtotal_format = f"{subtotal:,.0f}".replace(",", ".")
                             baris_gambar_info.append((f"Sub-total: Rp{subtotal_format}", False))
@@ -384,15 +438,16 @@ with menu4:
                     if len(df_filter_kb) > 0:
                         baris_gambar_info.append(("--- CATATAN TAMBAHAN ---", True))
                         for _, row_kb in df_filter_kb.iterrows():
-                            nominal_fmt = f"Rp {row_kb['Nominal']:,.0f}".replace(",", ".")
+                            nom_kb = float(row_kb['Nominal']) if pd.notnull(row_kb['Nominal']) else 0
+                            nominal_fmt = f"Rp {nom_kb:,.0f}".replace(",", ".")
                             if row_kb['Tipe'] == "Penambahan":
                                 baris_gambar_info.append((f"+ {row_kb['Keterangan']}", False))
                                 baris_gambar_info.append((f"  ({nominal_fmt})", False))
-                                total_tambah += row_kb['Nominal']
+                                total_tambah += nom_kb
                             else:
                                 baris_gambar_info.append((f"- {row_kb['Keterangan']}", False))
                                 baris_gambar_info.append((f"  ({nominal_fmt})", False))
-                                total_kurang += row_kb['Nominal']
+                                total_kurang += nom_kb
                         baris_gambar_info.append(("", False))
                     
                     total_gaji_bersih = total_pendapatan_upah + total_tambah - total_kurang
@@ -403,7 +458,7 @@ with menu4:
                     baris_gambar_info.append((total_str, True))
                     baris_gambar_info.append(("================================", False))
 
-                    scale = 4  # SKALA 4K
+                    scale = 4
                     base_width = 420
                     base_line_height = 20
                     base_margin = 20
@@ -438,7 +493,6 @@ with menu4:
                     st.subheader(f"📄 Slip Gaji: {nama_slip}")
                     st.image(byte_im, width=400)
                     
-                    # Kotak teks caption singkat siap salin untuk WhatsApp
                     caption_teks = f"Slip Gaji {nama_slip}\nPeriode: {tgl_mulai.strftime('%d/%m/%Y')} - {tgl_selesai.strftime('%d/%m/%Y')}\nTotal Diterima: Rp {total_semua_format}"
                     st.text_area("📋 Salin Caption Singkat:", value=caption_teks, height=80, key=f"caption_{nama_slip}_{time.time()}")
                     
@@ -462,11 +516,11 @@ with menu5:
     st.header("📊 Laporan Resume Kas Mingguan/Periode")
     st.caption("Masukkan periode tanggal, catat pengeluaran lain-lain, dan masukkan total uang cash yang ditarik untuk melihat sisa uang.")
     
-    df_gaji = pd.read_csv(FILE_GAJI)
+    df_gaji = load_data_from_sheet(SHEET_GAJI, ["ID Data", "Hari", "Tanggal", "Nama", "Pekerjaan", "Upah", "Jumlah", "Total"])
     if "Harga" in df_gaji.columns:
         df_gaji = df_gaji.rename(columns={"Harga": "Upah"})
-    df_kasbon = pd.read_csv(FILE_KASBON)
-    df_lain_all = pd.read_csv(FILE_PENGELUARAN_LAIN)
+    df_kasbon = load_data_from_sheet(SHEET_KASBON, ["ID Kasbon", "Tanggal", "Nama", "Tipe", "Keterangan", "Nominal"])
+    df_lain_all = load_data_from_sheet(SHEET_PENGELUARAN, ["ID Lain", "Keterangan", "Nominal"])
     
     col_r1, col_r2 = st.columns(2)
     with col_r1:
@@ -500,7 +554,7 @@ with menu5:
                     "Nominal": nominal_lain
                 }])
                 df_lain_updated = pd.concat([df_lain_all, baris_baru_lain], ignore_index=True)
-                df_lain_updated.to_csv(FILE_PENGELUARAN_LAIN, index=False)
+                save_data_to_sheet(SHEET_PENGELUARAN, df_lain_updated)
                 st.success(f"Berhasil menambahkan '{ket_lain}' sebesar Rp {nominal_lain:,.0f}!".replace(",", "."))
                 st.rerun()
             else:
@@ -509,23 +563,21 @@ with menu5:
     if len(df_lain_all) > 0:
         st.write("Daftar Pengeluaran Lainnya (Klik dua kali atau hapus baris jika ingin mengubah):")
         if "Keterangan" not in df_lain_all.columns:
-            if "Jenis" in df_lain_all.columns:
-                df_lain_all = df_lain_all.rename(columns={"Jenis": "Keterangan"})
-            else:
-                df_lain_all["Keterangan"] = ""
+            df_lain_all["Keterangan"] = ""
         if "Nominal" not in df_lain_all.columns:
             df_lain_all["Nominal"] = 0
         if "ID Lain" not in df_lain_all.columns:
             df_lain_all["ID Lain"] = [f"LAIN-{i}" for i in range(len(df_lain_all))]
             
         df_tampil_lain = df_lain_all[["ID Lain", "Keterangan", "Nominal"]].copy()
-        df_tampil_lain['Nominal'] = df_tampil_lain['Nominal'].apply(lambda x: f"Rp {x:,.0f}".replace(",", "."))
+        df_tampil_lain['Nominal'] = pd.to_numeric(df_tampil_lain['Nominal'], errors='coerce').fillna(0).apply(lambda x: f"Rp {x:,.0f}".replace(",", "."))
         
         df_lain_edit = st.data_editor(df_tampil_lain, num_rows="dynamic", use_container_width=True, key="edit_tabel_lain_bersih")
         
         if not df_tampil_lain.equals(df_lain_edit):
-            df_lain_edit['Nominal'] = df_lain_edit['Nominal'].astype(str).str.replace("Rp", "").str.replace(".", "").str.strip().astype(float)
-            df_lain_edit.to_csv(FILE_PENGELUARAN_LAIN, index=False)
+            df_lain_edit['Nominal'] = df_lain_edit['Nominal'].astype(str).str.replace("Rp", "").str.replace(".", "").str.strip()
+            df_lain_edit['Nominal'] = pd.to_numeric(df_lain_edit['Nominal'], errors='coerce').fillna(0)
+            save_data_to_sheet(SHEET_PENGELUARAN, df_lain_edit)
             st.toast("Data pengeluaran lain diperbarui! 💾", icon="✅")
             st.rerun()
             
@@ -539,34 +591,35 @@ with menu5:
         
         if len(df_kasbon) > 0:
             df_kasbon['Tanggal'] = pd.to_datetime(df_kasbon['Tanggal']).dt.date
-            df_f_kb = df_kasbon[(df_kasbon['Tanggal'] >= tgl_mulai_res) & (df_kasbon['Tanggal'] <= tgl_selesai)]
+            df_f_kb = df_kasbon[(df_kasbon['Tanggal'] >= tgl_mulai_res) & (df_kasbon['Tanggal'] <= tgl_selesai_res)]
         else:
             df_f_kb = pd.DataFrame()
             
-        rekap_gaji = {}
-        for k in daftar_karyawan:
-            rekap_gaji[k] = 0
-            
+        rekap_gaji = {k: 0 for k in daftar_karyawan}
+        
         if len(df_f_gaji) > 0:
             grup_nama = df_f_gaji.groupby('Nama')
             for nama, df_n in grup_nama:
-                rekap_gaji[nama] = rekap_gaji.get(nama, 0) + df_n['Total'].sum()
+                tot_sum = pd.to_numeric(df_n['Total'], errors='coerce').fillna(0).sum()
+                if nama in rekap_gaji:
+                    rekap_gaji[nama] += tot_sum
                 
         if len(df_f_kb) > 0:
             for _, row_kb in df_f_kb.iterrows():
                 nama = row_kb['Nama']
+                nom_kb = float(row_kb['Nominal']) if pd.notnull(row_kb['Nominal']) else 0
                 if nama in rekap_gaji:
                     if row_kb['Tipe'] == "Penambahan":
-                        rekap_gaji[nama] += row_kb['Nominal']
+                        rekap_gaji[nama] += nom_kb
                     else:
-                        rekap_gaji[nama] -= row_kb['Nominal']
+                        rekap_gaji[nama] -= nom_kb
                         
         total_gaji_semua = sum(rekap_gaji.values())
-        total_pengeluaran_lain = df_lain_all['Nominal'].sum() if len(df_lain_all) > 0 else 0
+        total_pengeluaran_lain = pd.to_numeric(df_lain_all['Nominal'], errors='coerce').fillna(0).sum() if len(df_lain_all) > 0 else 0
         total_pengeluaran_keseluruhan = total_gaji_semua + total_pengeluaran_lain
         sisa_uang = tarik_uang - total_pengeluaran_keseluruhan
         
-        scale = 4  # SKALA 4K
+        scale = 4
         w = 460 * scale
         
         base_h = 350
@@ -689,19 +742,19 @@ with menu5:
 # ==========================================
 with menu6:
     st.header("Pengaturan Master Data")
-    st.caption("💡 Tips: Tambahkan nama/pekerjaan baru di baris paling bawah. Data **TERSAVE OTOMATIS** saat Anda menekan Enter atau klik di luar tabel.")
+    st.caption("💡 Tips: Tambahkan nama/pekerjaan baru di baris paling bawah. Data **TERSAVE OTOMATIS** ke Google Sheets.")
     col_karyawan, col_pekerjaan = st.columns(2)
     
     with col_karyawan:
         st.subheader("👥 Daftar Nama Karyawan")
         df_karyawan_baru = st.data_editor(df_karyawan, num_rows="dynamic", key="edit_kary")
         if not df_karyawan.equals(df_karyawan_baru):
-            df_karyawan_baru.to_csv(FILE_KARYAWAN, index=False)
+            save_data_to_sheet(SHEET_KARYAWAN, df_karyawan_baru)
             st.toast("Daftar Karyawan tersimpan otomatis! 💾", icon="✅")
 
     with col_pekerjaan:
         st.subheader("🛠️ Daftar & Harga Pekerjaan")
         df_pekerjaan_baru = st.data_editor(df_pekerjaan, num_rows="dynamic", key="edit_pek")
         if not df_pekerjaan.equals(df_pekerjaan_baru):
-            df_pekerjaan_baru.to_csv(FILE_PEKERJAAN, index=False)
+            save_data_to_sheet(SHEET_PEKERJAAN, df_pekerjaan_baru)
             st.toast("Daftar Pekerjaan tersimpan otomatis! 💾", icon="✅")
