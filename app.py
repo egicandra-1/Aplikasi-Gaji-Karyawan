@@ -114,49 +114,6 @@ if "pesan_notif" not in st.session_state:
 if "pesan_tipe" not in st.session_state:
     st.session_state.pesan_tipe = ""
 
-if "pesan_kb" not in st.session_state:
-    st.session_state.pesan_kb = ""
-if "tipe_kb" not in st.session_state:
-    st.session_state.tipe_kb = ""
-
-# --- FUNGSI SIMPAN CEPAT (MENGGUNAKAN APPEND AGAR TANPA LOAD ULANG SHEET UTUH) ---
-def simpan_otomatis_via_enter():
-    pekerjaan = st.session_state.pekerjaan_input
-    jumlah = st.session_state.jumlah_input
-    nama = st.session_state.nama_karyawan
-    tanggal = st.session_state.tanggal_input
-    
-    if pekerjaan != "-" and jumlah is not None and jumlah > 0:
-        nama_hari = HARI_INDO[tanggal.strftime("%A")]
-        upah = tarif_pekerjaan[pekerjaan]
-        total = jumlah * upah
-        
-        # Kirim langsung baris baru ke Google Sheets menggunakan append_row (Sangat Cepat!)
-        try:
-            worksheet = spreadsheet.worksheet(SHEET_GAJI)
-            id_data = f"ID-{int(time.time())}"
-            tgl_str = tanggal.strftime("%Y-%m-%d")
-            worksheet.append_row([id_data, nama_hari, tgl_str, nama, pekerjaan, upah, jumlah, total])
-            load_data_from_sheet.clear() # Bersihkan cache supaya data sinkron
-            
-            jml_fmt = f"{jumlah:,.0f}".replace(",", ".")
-            st.session_state.pesan_tipe = "success"
-            st.session_state.pesan_notif = f"✅ Berhasil menyimpan! {jml_fmt} {pekerjaan} untuk {nama}."
-        except Exception as e:
-            st.session_state.pesan_tipe = "error"
-            st.session_state.pesan_notif = f"⚠️ Gagal menyimpan ke server: {e}"
-        
-        st.session_state.pekerjaan_input = "-"
-        st.session_state.jumlah_input = None
-
-    elif (jumlah is not None and jumlah > 0) and pekerjaan == "-":
-        st.session_state.pesan_tipe = "error"
-        st.session_state.pesan_notif = "⚠️ Gagal simpan! Anda belum memilih Jenis Pekerjaan."
-
-    elif pekerjaan != "-" and (jumlah is None or jumlah <= 0):
-        st.session_state.pesan_tipe = "error"
-        st.session_state.pesan_notif = "⚠️ Gagal simpan! Anda belum mengisi Jumlah (Pcs)."
-
 # --- MENU NAVIGASI ---
 menu1, menu2, menu3, menu4, menu5, menu6 = st.tabs([
     "📝 1. Input Harian", 
@@ -168,7 +125,7 @@ menu1, menu2, menu3, menu4, menu5, menu6 = st.tabs([
 ])
 
 # ==========================================
-# MENU 1: INPUT HARIAN
+# MENU 1: INPUT HARIAN (MENGGUNAKAN FORM & TOMBOL SIMPAN / ENTER)
 # ==========================================
 with menu1:
     st.header("Input Pekerjaan Harian")
@@ -176,38 +133,50 @@ with menu1:
     if len(daftar_karyawan) == 0 or len(daftar_pekerjaan) == 0:
         st.warning("⚠️ Data Karyawan atau Pekerjaan kosong. Silakan isi terlebih dahulu di Menu 6.")
     else:
-        col_tgl, col_nama = st.columns(2)
-        with col_tgl:
-            tanggal = st.date_input("Pilih Tanggal", datetime.today(), format="DD/MM/YYYY", key="tanggal_input")
-            nama_hari = HARI_INDO[tanggal.strftime("%A")]
-            st.success(f"📅 Hari terpilih: **{nama_hari}**")
-            
-        with col_nama:
-            nama = st.selectbox("Pilih Karyawan", daftar_karyawan, key="nama_karyawan")
-            st.info(f"👤 Karyawan: **{nama}**")
-
-        st.markdown("---")
-        st.markdown("### ⚡ Panel Input Cepat")
-        st.caption("Pilih pekerjaan, ketik jumlahnya, lalu **tekan Enter**. Data akan otomatis tersimpan instan.")
-        
-        col1, col2 = st.columns([2, 1])
-        with col1:
-            opsi_kerja = ["-"] + daftar_pekerjaan
-            pekerjaan = st.selectbox("Pilih Pekerjaan", opsi_kerja, key="pekerjaan_input", on_change=simpan_otomatis_via_enter)
-        with col2:
-            jumlah = st.number_input("Jumlah (Pcs)", min_value=0, step=1, value=None, placeholder="Ketik lalu tekan Enter...", key="jumlah_input", on_change=simpan_otomatis_via_enter)
-            
-            if "pesan_notif" in st.session_state and st.session_state.pesan_notif:
-                placeholder_notif = st.empty()
-                if st.session_state.pesan_tipe == "success":
-                    placeholder_notif.success(st.session_state.pesan_notif)
-                else:
-                    placeholder_notif.error(st.session_state.pesan_notif)
+        with st.form("form_input_harian", clear_on_submit=True):
+            col_tgl, col_nama = st.columns(2)
+            with col_tgl:
+                tanggal = st.date_input("Pilih Tanggal", datetime.today(), format="DD/MM/YYYY")
+                nama_hari = HARI_INDO[tanggal.strftime("%A")]
+                st.write(f"📅 Hari terpilih: **{nama_hari}**")
                 
-                time.sleep(2)
-                placeholder_notif.empty()
-                st.session_state.pesan_notif = ""
-                st.session_state.pesan_tipe = ""
+            with col_nama:
+                nama = st.selectbox("Pilih Karyawan", daftar_karyawan)
+                st.write(f"👤 Karyawan: **{nama}**")
+
+            st.markdown("---")
+            st.markdown("### ⚡ Panel Input Harian")
+            st.caption("Pilih pekerjaan, ketik jumlahnya, lalu **tekan Enter** pada keyboard atau klik tombol Simpan.")
+            
+            col1, col2 = st.columns([2, 1])
+            with col1:
+                opsi_kerja = ["-"] + daftar_pekerjaan
+                pekerjaan = st.selectbox("Pilih Pekerjaan", opsi_kerja)
+            with col2:
+                jumlah = st.number_input("Jumlah (Pcs)", min_value=0, step=1, value=None, placeholder="Ketik jumlah pcs...")
+                
+            submitted_input = st.form_submit_button("💾 Simpan Data Pekerjaan", type="primary", use_container_width=True)
+            
+            if submitted_input:
+                if pekerjaan != "-" and jumlah is not None and jumlah > 0:
+                    upah = tarif_pekerjaan[pekerjaan]
+                    total = jumlah * upah
+                    
+                    try:
+                        worksheet = spreadsheet.worksheet(SHEET_GAJI)
+                        id_data = f"ID-{int(time.time())}"
+                        tgl_str = tanggal.strftime("%Y-%m-%d")
+                        worksheet.append_row([id_data, nama_hari, tgl_str, nama, pekerjaan, upah, jumlah, total])
+                        load_data_from_sheet.clear()
+                        
+                        jml_fmt = f"{jumlah:,.0f}".replace(",", ".")
+                        st.success(f"✅ Berhasil menyimpan! {jml_fmt} {pekerjaan} untuk {nama}.")
+                    except Exception as e:
+                        st.error(f"⚠️ Gagal menyimpan ke server: {e}")
+                elif (jumlah is not None and jumlah > 0) and pekerjaan == "-":
+                    st.error("⚠️ Gagal simpan! Anda belum memilih Jenis Pekerjaan.")
+                else:
+                    st.error("⚠️ Gagal simpan! Mohon pilih pekerjaan dan isi jumlah dengan benar.")
 
 # ==========================================
 # MENU 2: DATABASE & EDIT PEKERJAAN
@@ -299,26 +268,11 @@ with menu3:
                         worksheet.append_row([id_kb, tgl_str, nama_kb, tipe_kb, ket_kb, nominal_kb])
                         load_data_from_sheet.clear()
                         
-                        st.session_state.tipe_kb = "success"
-                        st.session_state.pesan_kb = f"✅ Berhasil menyimpan {tipe_kb} untuk {nama_kb} sebesar Rp {nominal_kb:,.0f}!".replace(",", ".")
-                        st.rerun()
+                        st.success(f"✅ Berhasil menyimpan {tipe_kb} untuk {nama_kb} sebesar Rp {nominal_kb:,.0f}!".replace(",", "."))
                     except Exception as e:
-                        st.session_state.tipe_kb = "error"
-                        st.session_state.pesan_kb = f"⚠️ Gagal simpan ke server: {e}"
+                        st.error(f"⚠️ Gagal simpan ke server: {e}")
                 else:
-                    st.session_state.tipe_kb = "error"
-                    st.session_state.pesan_kb = "⚠️ Gagal simpan! Mohon isi keterangan dan nominal dengan benar (harus lebih dari 0)."
-
-        if "pesan_kb" in st.session_state and st.session_state.pesan_kb:
-            ph_kb = st.empty()
-            if st.session_state.tipe_kb == "success":
-                ph_kb.success(st.session_state.pesan_kb)
-            else:
-                ph_kb.error(st.session_state.pesan_kb)
-            time.sleep(2)
-            ph_kb.empty()
-            st.session_state.pesan_kb = ""
-            st.session_state.tipe_kb = ""
+                    st.error("⚠️ Gagal simpan! Mohon isi keterangan dan nominal dengan benar (harus lebih dari 0).")
 
         st.markdown("---")
         st.subheader("📋 Riwayat Penambahan & Pengurangan (Auto-Save)")
@@ -550,7 +504,6 @@ with menu5:
                     load_data_from_sheet.clear()
                     
                     st.success(f"Berhasil menambahkan '{ket_lain}' sebesar Rp {nominal_lain:,.0f}!".replace(",", "."))
-                    st.rerun()
                 except Exception as e:
                     st.warning(f"⚠️ Gagal menyimpan ke server: {e}")
             else:
