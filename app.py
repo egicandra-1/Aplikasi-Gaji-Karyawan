@@ -17,6 +17,19 @@ HARI_INDO = {
 URUTAN_HARI = {"Senin": 1, "Selasa": 2, "Rabu": 3, "Kamis": 4, "Jumat": 5, "Sabtu": 6, "Minggu": 7}
 
 st.set_page_config(page_title="Sistem Penggajian", layout="wide", page_icon="📝")
+
+# ==========================================
+# SUNTIKAN CSS: MENGHILANGKAN IKON RANTAI GLOBAL
+# ==========================================
+st.markdown("""
+    <style>
+    /* Menyembunyikan ikon rantai (anchor links) di semua judul Streamlit */
+    h1 a, h2 a, h3 a, h4 a, h5 a, h6 a {
+        display: none !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 st.title("Aplikasi Rekap Gaji Karyawan")
 
 # ==========================================
@@ -135,8 +148,8 @@ with menu1:
                 nama = st.selectbox("Pilih Karyawan", daftar_karyawan)
 
             st.markdown("---")
-            # Trik Anti-Rantai: Menggunakan tag <div> biasa yang dibesarkan agar tidak dibaca sebagai judul oleh Streamlit
-            st.markdown("<div style='font-size: 22px; font-weight: bold; margin-bottom: 15px;'>⚡ Panel Input Harian</div>", unsafe_allow_html=True)
+            # Kembali menggunakan Markdown standar yang bersih, karena ikon rantai sudah dimatikan secara global
+            st.markdown("### ⚡ Panel Input Harian")
             
             col1, col2 = st.columns([2, 1])
             with col1:
