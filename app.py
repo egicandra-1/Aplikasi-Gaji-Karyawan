@@ -135,14 +135,15 @@ menu1, menu2, menu3, menu4, menu5, menu6 = st.tabs([
 with menu1:
     st.header("Input Pekerjaan Harian")
     
-    # Menampilkan notifikasi sukses agar tetap muncul setelah layar di-refresh otomatis
     if "notif_sukses_harian" in st.session_state:
         st.success(st.session_state.notif_sukses_harian)
         del st.session_state.notif_sukses_harian
 
-    # Memori untuk mengingat Pilihan Tanggal dan Karyawan terakhir
-    if "last_date_harian" not in st.session_state:
-        st.session_state.last_date_harian = datetime.today()
+    # Memastikan nilai default memori tidak melebihi tanggal hari ini
+    today_date = datetime.today()
+    if "last_date_harian" not in st.session_state or st.session_state.last_date_harian.date() > today_date.date():
+        st.session_state.last_date_harian = today_date
+        
     if "last_karyawan_harian" not in st.session_state:
         st.session_state.last_karyawan_harian = daftar_karyawan[0] if daftar_karyawan else ""
     
@@ -152,17 +153,16 @@ with menu1:
         with st.form("form_input_harian", clear_on_submit=True):
             col_tgl, col_nama = st.columns(2)
             with col_tgl:
-                # Menggunakan memori last_date_harian
-                tanggal = st.date_input("Pilih Tanggal", st.session_state.last_date_harian, format="DD/MM/YYYY")
+                # Menggunakan parameter max_value=datetime.today() untuk mengunci tanggal masa depan
+                tanggal = st.date_input("Pilih Tanggal", st.session_state.last_date_harian, max_value=datetime.today(), format="DD/MM/YYYY")
                 nama_hari = HARI_INDO[tanggal.strftime("%A")]
                 
             with col_nama:
-                # Menggunakan memori last_karyawan_harian
                 idx_kar = daftar_karyawan.index(st.session_state.last_karyawan_harian) if st.session_state.last_karyawan_harian in daftar_karyawan else 0
                 nama = st.selectbox("Pilih Karyawan", daftar_karyawan, index=idx_kar)
 
             st.markdown("---")
-            st.markdown("<div style='font-size: 22px; font-weight: bold; margin-bottom: 15px;'>⚡ Panel Input Harian</div>", unsafe_allow_html=True)
+            st.markdown("### ⚡ Panel Input Harian")
             
             col1, col2 = st.columns([2, 1])
             with col1:
@@ -183,20 +183,17 @@ with menu1:
                         id_data = f"ID-{int(time.time())}"
                         tgl_str = tanggal.strftime("%Y-%m-%d")
                         
-                        # Simpan ke Memori Instan
                         baris_baru = pd.DataFrame([{"ID Data": id_data, "Hari": nama_hari, "Tanggal": tgl_str, "Nama": nama, "Pekerjaan": pekerjaan, "Upah": upah, "Jumlah": jumlah, "Total": total}])
                         st.session_state.df_gaji = pd.concat([st.session_state.df_gaji, baris_baru], ignore_index=True)
                         
-                        # Simpan Background ke Sheets
                         ws["gaji"].append_row([id_data, nama_hari, tgl_str, nama, pekerjaan, upah, jumlah, total])
                         
-                        # MEMPERBARUI MEMORI TANGGAL DAN KARYAWAN TERAKHIR
                         st.session_state.last_date_harian = tanggal
                         st.session_state.last_karyawan_harian = nama
                         
                         jml_fmt = f"{jumlah:,.0f}".replace(",", ".")
                         st.session_state.notif_sukses_harian = f"✅ Tersimpan Kilat! {jml_fmt} {pekerjaan} untuk {nama}."
-                        st.rerun() # Refresh seketika agar form bersih tapi tanggal & nama tetap
+                        st.rerun() 
                     except Exception as e:
                         st.error(f"⚠️ Gagal simpan: {e}")
                 else:
@@ -224,13 +221,12 @@ with menu2:
                     df_harian = df_tampil[(df_tampil['Tanggal'] == tgl) & (df_tampil['Hari'] == hari)].copy()
                     
                     with st.form(f"form_edit_harian_{tgl}_{hari}"):
-                        # Tabel instan tanpa angka indeks di sisi kiri (hide_index=True)
                         df_harian_edit = st.data_editor(
                             df_harian, 
                             num_rows="dynamic", 
                             use_container_width=True, 
-                            column_config={"ID Data": None}, # ID Data disembunyikan agar bersih
-                            hide_index=True, # Menghilangkan kolom nomor urut default
+                            column_config={"ID Data": None},
+                            hide_index=True, 
                             key=f"editor_{tgl}_{hari}"
                         )
                         
@@ -249,7 +245,6 @@ with menu2:
                             
                             st.session_state.df_gaji = df_final
                             
-                            # Bulk Update ke Sheets (Gaya Gudang)
                             ws["gaji"].clear()
                             ws["gaji"].update([df_final.columns.values.tolist()] + df_final.fillna("").values.tolist())
                             
@@ -271,9 +266,9 @@ with menu3:
         st.success(st.session_state.notif_sukses_kb)
         del st.session_state.notif_sukses_kb
 
-    # Memori untuk Tanggal dan Karyawan di Menu Kasbon
-    if "last_date_kb" not in st.session_state:
-        st.session_state.last_date_kb = datetime.today()
+    if "last_date_kb" not in st.session_state or st.session_state.last_date_kb.date() > today_date.date():
+        st.session_state.last_date_kb = today_date
+        
     if "last_karyawan_kb" not in st.session_state:
         st.session_state.last_karyawan_kb = daftar_karyawan[0] if daftar_karyawan else ""
 
@@ -281,7 +276,8 @@ with menu3:
         with st.form("form_kasbon", clear_on_submit=True):
             col_kb1, col_kb2, col_kb3 = st.columns(3)
             with col_kb1:
-                tgl_kb = st.date_input("Tanggal Transaksi", st.session_state.last_date_kb, format="DD/MM/YYYY")
+                # Menggunakan parameter max_value=datetime.today()
+                tgl_kb = st.date_input("Tanggal Transaksi", st.session_state.last_date_kb, max_value=datetime.today(), format="DD/MM/YYYY")
             with col_kb2:
                 idx_kb = daftar_karyawan.index(st.session_state.last_karyawan_kb) if st.session_state.last_karyawan_kb in daftar_karyawan else 0
                 nama_kb = st.selectbox("Pilih Karyawan", daftar_karyawan, index=idx_kb)
@@ -307,7 +303,6 @@ with menu3:
                         
                         ws["kasbon"].append_row([id_kb, tgl_str, nama_kb, tipe_kb, ket_kb, nominal_kb])
                         
-                        # MEMPERBARUI MEMORI
                         st.session_state.last_date_kb = tgl_kb
                         st.session_state.last_karyawan_kb = nama_kb
                         
@@ -329,9 +324,9 @@ with menu4:
     if len(df_gaji) > 0 and len(daftar_karyawan) > 0:
         col_a, col_b = st.columns(2)
         with col_a:
-            tgl_mulai = st.date_input("Dari Tanggal", datetime.today(), format="DD/MM/YYYY", key="tgl_mulai_slip")
+            tgl_mulai = st.date_input("Dari Tanggal", datetime.today(), max_value=datetime.today(), format="DD/MM/YYYY", key="tgl_mulai_slip")
         with col_b:
-            tgl_selesai = st.date_input("Sampai Tanggal", datetime.today(), format="DD/MM/YYYY", key="tgl_selesai_slip")
+            tgl_selesai = st.date_input("Sampai Tanggal", datetime.today(), max_value=datetime.today(), format="DD/MM/YYYY", key="tgl_selesai_slip")
             
         nama_slip_pilihan = st.selectbox("Pilih Nama Karyawan", ["Semua Karyawan"] + daftar_karyawan, key="slip_nama")
         
@@ -410,8 +405,8 @@ with menu5:
     df_lain_all = st.session_state.df_pengeluaran.copy()
     
     col_r1, col_r2 = st.columns(2)
-    with col_r1: tgl_mulai_res = st.date_input("Dari Tanggal", datetime.today(), format="DD/MM/YYYY", key="res_mulai")
-    with col_r2: tgl_selesai_res = st.date_input("Sampai Tanggal", datetime.today(), format="DD/MM/YYYY", key="res_selesai")
+    with col_r1: tgl_mulai_res = st.date_input("Dari Tanggal", datetime.today(), max_value=datetime.today(), format="DD/MM/YYYY", key="res_mulai")
+    with col_r2: tgl_selesai_res = st.date_input("Sampai Tanggal", datetime.today(), max_value=datetime.today(), format="DD/MM/YYYY", key="res_selesai")
     
     tarik_uang_str = st.text_input("💵 Total Penarikan Uang Cash (Rp)", placeholder="Ketik nominal...")
     
