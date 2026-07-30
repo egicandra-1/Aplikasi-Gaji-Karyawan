@@ -14,7 +14,7 @@ HARI_INDO = {
     "Thursday": "Kamis", "Friday": "Jumat", "Saturday": "Sabtu", "Sunday": "Minggu"
 }
 
-URUTAN_HARI = {"Senin": 1, "Selasa": 2, "Rabu": 3, "Kamis": 4, "Jumat": 5, "Sabtu": 6, "Minggu": 7}
+URUTAN_HARI = {"Senin": 1, "Selasa": 2, "Rabu": 3, "Kamis": 4, "Jumat": 5, "Sabtu": 6, "Ninggu": 7}
 
 st.set_page_config(page_title="Sistem Penggajian", layout="wide", page_icon="📝")
 
@@ -279,24 +279,23 @@ with menu2:
                     def save_callback(t=tgl, h=hari, orig_ids=df_harian['ID Data'].tolist()):
                         edited_df = st.session_state[f"editor_{t}_{h}"]
                         
-                        # Menggunakan indeks kolom (posisi) agar aman dari KeyError nama kolom
-                        # Kolom: 0=ID Data, 1=Nama, 2=Pekerjaan, 3=Upah, 4=Jumlah, 5=Total
-                        col_upah = edited_df.columns[3]
-                        col_jumlah = edited_df.columns[4]
+                        # Membaca data secara aman berdasarkan nomor kolom (0: ID, 1: Nama, 2: Pekerjaan, 3: Upah, 4: Jumlah, 5: Total)
+                        ids = edited_df.iloc[:, 0].apply(lambda x: f"ID-{int(time.time())}" if pd.isna(x) or str(x).strip() == "" else str(x))
+                        namas = edited_df.iloc[:, 1]
+                        pekerjaans = edited_df.iloc[:, 2]
+                        upahs = pd.to_numeric(edited_df.iloc[:, 3], errors='coerce').fillna(0)
+                        jumlahs = pd.to_numeric(edited_df.iloc[:, 4], errors='coerce').fillna(0)
+                        totals = jumlahs * upahs
                         
-                        edited_df[col_upah] = pd.to_numeric(edited_df[col_upah], errors='coerce').fillna(0)
-                        edited_df[col_jumlah] = pd.to_numeric(edited_df[col_jumlah], errors='coerce').fillna(0)
-                        
-                        # Buat dataframe final terstandarisasi
                         df_processed = pd.DataFrame({
-                            'ID Data': edited_df.iloc[:, 0].apply(lambda x: f"ID-{int(time.time())}" if pd.isna(x) or str(x).strip() == "" else str(x)),
+                            'ID Data': ids,
                             'Hari': h,
                             'Tanggal': t,
-                            'Nama': edited_df.iloc[:, 1],
-                            'Pekerjaan': edited_df.iloc[:, 2],
-                            'Upah': edited_df[col_upah],
-                            'Jumlah': edited_df[col_jumlah],
-                            'Total': edited_df[col_jumlah] * edited_df[col_upah]
+                            'Nama': namas,
+                            'Pekerjaan': pekerjaans,
+                            'Upah': upahs,
+                            'Jumlah': jumlahs,
+                            'Total': totals
                         })
                         
                         df_sisa = st.session_state.df_gaji[~st.session_state.df_gaji['ID Data'].isin(orig_ids)]
