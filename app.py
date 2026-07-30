@@ -125,7 +125,7 @@ menu1, menu2, menu3, menu4, menu5, menu6 = st.tabs([
 ])
 
 # ==========================================
-# MENU 1: INPUT HARIAN (MENGGUNAKAN FORM & TOMBOL SIMPAN / ENTER)
+# MENU 1: INPUT HARIAN
 # ==========================================
 with menu1:
     st.header("Input Pekerjaan Harian")
@@ -687,23 +687,64 @@ with menu5:
         )
 
 # ==========================================
-# MENU 6: PENGATURAN KARYAWAN & PEKERJAAN
+# MENU 6: PENGATURAN KARYAWAN & PEKERJAAN (MENGGUNAKAN FORM INPUT AMAN)
 # ==========================================
 with menu6:
     st.header("Pengaturan Master Data")
-    st.caption("💡 Tips: Tambahkan nama/pekerjaan baru di baris paling bawah. Data **TERSAVE OTOMATIS** ke Google Sheets.")
+    st.caption("💡 Tambahkan Karyawan atau Pekerjaan baru dengan mudah menggunakan form di bawah ini agar tidak ada data yang hilang.")
+    
     col_karyawan, col_pekerjaan = st.columns(2)
     
     with col_karyawan:
         st.subheader("👥 Daftar Nama Karyawan")
-        df_karyawan_baru = st.data_editor(df_karyawan, num_rows="dynamic", key="edit_kary")
-        if not df_karyawan.equals(df_karyawan_baru):
-            save_data_to_sheet(SHEET_KARYAWAN, df_karyawan_baru)
-            st.toast("Daftar Karyawan tersimpan otomatis! 💾", icon="✅")
+        
+        # Form tambah karyawan baru agar tidak macet
+        with st.form("form_tambah_karyawan", clear_on_submit=True):
+            nama_baru = st.text_input("Nama Karyawan Baru", placeholder="Ketik nama...")
+            btn_tambah_karyawan = st.form_submit_button("➕ Tambah Karyawan", type="primary", use_container_width=True)
+            if btn_tambah_karyawan:
+                if nama_baru.strip() != "":
+                    if nama_baru not in daftar_karyawan:
+                        df_karyawan.loc[len(df_karyawan)] = [nama_baru.strip()]
+                        save_data_to_sheet(SHEET_KARYAWAN, df_karyawan)
+                        st.success(f"Berhasil menambahkan {nama_baru}!")
+                        st.rerun()
+                    else:
+                        st.warning("Nama karyawan sudah ada!")
+                else:
+                    st.warning("Mohon isi nama karyawan.")
+        
+        st.write("Daftar Karyawan Saat Ini:")
+        df_karyawan_edit = st.data_editor(df_karyawan, num_rows="dynamic", key="edit_kary_baru", use_container_width=True)
+        if not df_karyawan.equals(df_karyawan_edit):
+            save_data_to_sheet(SHEET_KARYAWAN, df_karyawan_edit)
+            st.toast("Daftar Karyawan diperbarui! 💾", icon="✅")
+            st.rerun()
 
     with col_pekerjaan:
         st.subheader("🛠️ Daftar & Harga Pekerjaan")
-        df_pekerjaan_baru = st.data_editor(df_pekerjaan, num_rows="dynamic", key="edit_pek")
-        if not df_pekerjaan.equals(df_pekerjaan_baru):
-            save_data_to_sheet(SHEET_PEKERJAAN, df_pekerjaan_baru)
-            st.toast("Daftar Pekerjaan tersimpan otomatis! 💾", icon="✅")
+        
+        # Form tambah pekerjaan baru agar aman dan tidak hilang
+        with st.form("form_tambah_pekerjaan", clear_on_submit=True):
+            pek_baru = st.text_input("Jenis Pekerjaan Baru", placeholder="Ketik jenis pekerjaan...")
+            harga_baru = st.number_input("Harga Per Pcs (Rp)", min_value=0, step=50, value=0)
+            btn_tambah_pek = st.form_submit_button("➕ Tambah Pekerjaan", type="primary", use_container_width=True)
+            if btn_tambah_pek:
+                if pek_baru.strip() != "":
+                    if pek_baru not in daftar_pekerjaan:
+                        baris_baru_pek = pd.DataFrame([{"Jenis Pekerjaan": pek_baru.strip(), "Harga Per Pcs": harga_baru}])
+                        df_pekerjaan_updated = pd.concat([df_pekerjaan, baris_baru_pek], ignore_index=True)
+                        save_data_to_sheet(SHEET_PEKERJAAN, df_pekerjaan_updated)
+                        st.success(f"Berhasil menambahkan {pek_baru}!")
+                        st.rerun()
+                    else:
+                        st.warning("Jenis pekerjaan sudah ada!")
+                else:
+                    st.warning("Mohon isi nama pekerjaan.")
+
+        st.write("Daftar Pekerjaan Saat Ini:")
+        df_pekerjaan_edit = st.data_editor(df_pekerjaan, num_rows="dynamic", key="edit_pek_baru", use_container_width=True)
+        if not df_pekerjaan.equals(df_pekerjaan_edit):
+            save_data_to_sheet(SHEET_PEKERJAAN, df_pekerjaan_edit)
+            st.toast("Daftar Pekerjaan diperbarui! 💾", icon="✅")
+            st.rerun()
