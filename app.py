@@ -649,7 +649,7 @@ with menu5:
         st.download_button("📥 Unduh Resume", data=byte_resume, file_name=f"Resume_{tgl_mulai_res.strftime('%d%m%Y')}.jpg", mime="image/jpeg")
 
 # ==========================================
-# MENU 6: PENGATURAN (OTOMATIS SIMPAN & NOTIFIKASI DEKAT TABEL)
+# MENU 6: PENGATURAN (DENGAN TOMBOL SIMPAN & NOTIFIKASI)
 # ==========================================
 with menu6:
     st.header("Pengaturan Master Data")
@@ -658,75 +658,93 @@ with menu6:
     
     with col_karyawan:
         st.subheader("👥 Daftar Karyawan")
-        st.caption("💡 Klik langsung pada baris untuk menambah atau mengedit nama karyawan, lalu tekan **Enter**. Centang kotak di kiri + **Delete** untuk menghapus.")
+        st.caption("💡 Klik langsung pada baris untuk menambah atau mengedit nama karyawan. Centang kotak di kiri + **Delete** untuk menghapus.")
         
-        notif_area_6k = st.empty()
-        if "notif_6k" in st.session_state:
-            notif_area_6k.success(st.session_state["notif_6k"])
-            del st.session_state["notif_6k"]
+        with st.form("form_master_karyawan"):
+            edited_karyawan = st.data_editor(
+                st.session_state.df_karyawan, 
+                num_rows="dynamic", 
+                use_container_width=True,
+                hide_index=True,
+                key="editor_karyawan"
+            )
             
-        def save_karyawan_callback():
-            edited_kar = st.session_state.get("editor_karyawan")
-            if edited_kar is not None and isinstance(edited_kar, pd.DataFrame):
-                edited_kar = edited_kar[edited_kar['Nama Karyawan'].astype(str).str.strip() != ""]
-                st.session_state.df_karyawan = edited_kar
+            notif_area_6k = st.empty()
+            if "notif_6k" in st.session_state:
+                if st.session_state.notif_6k_type == "success":
+                    notif_area_6k.success(st.session_state.notif_6k)
+                else:
+                    notif_area_6k.error(st.session_state.notif_6k)
+                del st.session_state.notif_6k
+                del st.session_state.notif_6k_type
                 
-                ws["karyawan"].clear()
-                ws["karyawan"].update([edited_kar.columns.values.tolist()] + edited_kar.fillna("").values.tolist())
-                st.session_state["notif_6k"] = "✅ Daftar Karyawan Berhasil Disimpan Otomatis!"
-
-        st.data_editor(
-            st.session_state.df_karyawan, 
-            num_rows="dynamic", 
-            use_container_width=True,
-            hide_index=True,
-            key="editor_karyawan",
-            on_change=save_karyawan_callback
-        )
+            if st.form_submit_button("💾 Simpan Perubahan Karyawan", type="primary", use_container_width=True):
+                try:
+                    edited_karyawan = edited_karyawan[edited_karyawan['Nama Karyawan'].astype(str).str.strip() != ""]
+                    st.session_state.df_karyawan = edited_karyawan
+                    
+                    ws["karyawan"].clear()
+                    ws["karyawan"].update([edited_karyawan.columns.values.tolist()] + edited_karyawan.fillna("").values.tolist())
+                    
+                    st.session_state.notif_6k = "✅ Daftar Karyawan Berhasil Disimpan!"
+                    st.session_state.notif_6k_type = "success"
+                    st.rerun()
+                except Exception as e:
+                    st.session_state.notif_6k = f"⚠️ Gagal menyimpan: {e}"
+                    st.session_state.notif_6k_type = "error"
+                    st.rerun()
 
     with col_pekerjaan:
         st.subheader("🛠️ Daftar Pekerjaan & Upah")
-        st.caption("💡 Klik langsung pada baris untuk menambah atau mengedit jenis pekerjaan & upah, lalu tekan **Enter**. Centang kotak di kiri + **Delete** untuk menghapus.")
+        st.caption("💡 Klik langsung pada baris untuk menambah atau mengedit jenis pekerjaan & upah. Centang kotak di kiri + **Delete** untuk menghapus.")
         
-        notif_area_6p = st.empty()
-        if "notif_6p" in st.session_state:
-            notif_area_6p.success(st.session_state["notif_6p"])
-            del st.session_state["notif_6p"]
-            
-        def save_pekerjaan_callback():
-            edited_pek = st.session_state.get("editor_pekerjaan")
-            if edited_pek is not None and isinstance(edited_pek, pd.DataFrame):
-                edited_pek = edited_pek[edited_pek['Jenis Pekerjaan'].astype(str).str.strip() != ""]
-                
-                col_upah_target = edited_pek.columns[1] if len(edited_pek.columns) > 1 else 'Upah'
-                edited_pek[col_upah_target] = pd.to_numeric(edited_pek[col_upah_target], errors='coerce').fillna(0)
-                
-                df_final_pek = pd.DataFrame({
-                    'Jenis Pekerjaan': edited_pek.iloc[:, 0],
-                    'Upah': edited_pek[col_upah_target]
-                })
-                
-                st.session_state.df_pekerjaan = df_final_pek
-                ws["pekerjaan"].clear()
-                ws["pekerjaan"].update([df_final_pek.columns.values.tolist()] + df_final_pek.fillna("").values.tolist())
-                st.session_state["notif_6p"] = "✅ Daftar Pekerjaan & Upah Berhasil Disimpan Otomatis!"
+        with st.form("form_master_pekerjaan"):
+            df_pek_view = st.session_state.df_pekerjaan.copy()
+            if "Harga Per Pcs" in df_pek_view.columns:
+                df_pek_view = df_pek_view.rename(columns={"Harga Per Pcs": "Upah"})
+            elif len(df_pek_view.columns) > 1 and df_pek_view.columns[1] != "Upah":
+                df_pek_view = df_pek_view.rename(columns={df_pek_view.columns[1]: "Upah"})
+            df_pek_view['Upah'] = pd.to_numeric(df_pek_view['Upah'], errors='coerce').fillna(0)
 
-        df_pek_view = st.session_state.df_pekerjaan.copy()
-        if "Harga Per Pcs" in df_pek_view.columns:
-            df_pek_view = df_pek_view.rename(columns={"Harga Per Pcs": "Upah"})
-        elif len(df_pek_view.columns) > 1 and df_pek_view.columns[1] != "Upah":
-            df_pek_view = df_pek_view.rename(columns={df_pek_view.columns[1]: "Upah"})
+            edited_pekerjaan = st.data_editor(
+                df_pek_view, 
+                num_rows="dynamic", 
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Upah": st.column_config.NumberColumn("Upah (Per Pcs)", format="Rp %,d")
+                },
+                key="editor_pekerjaan"
+            )
             
-        df_pek_view['Upah'] = pd.to_numeric(df_pek_view['Upah'], errors='coerce').fillna(0)
-
-        st.data_editor(
-            df_pek_view, 
-            num_rows="dynamic", 
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "Upah": st.column_config.NumberColumn("Upah (Per Pcs)", format="Rp %,d")
-            },
-            key="editor_pekerjaan",
-            on_change=save_pekerjaan_callback
-        )
+            notif_area_6p = st.empty()
+            if "notif_6p" in st.session_state:
+                if st.session_state.notif_6p_type == "success":
+                    notif_area_6p.success(st.session_state.notif_6p)
+                else:
+                    notif_area_6p.error(st.session_state.notif_6p)
+                del st.session_state.notif_6p
+                del st.session_state.notif_6p_type
+                
+            if st.form_submit_button("💾 Simpan Perubahan Pekerjaan", type="primary", use_container_width=True):
+                try:
+                    edited_pekerjaan = edited_pekerjaan[edited_pekerjaan['Jenis Pekerjaan'].astype(str).str.strip() != ""]
+                    col_upah_target = edited_pekerjaan.columns[1] if len(edited_pekerjaan.columns) > 1 else 'Upah'
+                    edited_pekerjaan[col_upah_target] = pd.to_numeric(edited_pekerjaan[col_upah_target], errors='coerce').fillna(0)
+                    
+                    df_final_pek = pd.DataFrame({
+                        'Jenis Pekerjaan': edited_pekerjaan.iloc[:, 0],
+                        'Upah': edited_pekerjaan[col_upah_target]
+                    })
+                    
+                    st.session_state.df_pekerjaan = df_final_pek
+                    ws["pekerjaan"].clear()
+                    ws["pekerjaan"].update([df_final_pek.columns.values.tolist()] + df_final_pek.fillna("").values.tolist())
+                    
+                    st.session_state.notif_6p = "✅ Daftar Pekerjaan & Upah Berhasil Disimpan!"
+                    st.session_state.notif_6p_type = "success"
+                    st.rerun()
+                except Exception as e:
+                    st.session_state.notif_6p = f"⚠️ Gagal menyimpan: {e}"
+                    st.session_state.notif_6p_type = "error"
+                    st.rerun()
