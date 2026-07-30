@@ -6,6 +6,7 @@ from PIL import Image, ImageDraw, ImageFont
 import io
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+import json
 
 # --- KAMUS HARI BAHASA INDONESIA ---
 HARI_INDO = {
@@ -15,102 +16,95 @@ HARI_INDO = {
 
 URUTAN_HARI = {"Senin": 1, "Selasa": 2, "Rabu": 3, "Kamis": 4, "Jumat": 5, "Sabtu": 6, "Minggu": 7}
 
-# Mengatur tampilan halaman
 st.set_page_config(page_title="Sistem Penggajian", layout="wide", page_icon="📝")
 st.title("Aplikasi Rekap Gaji Karyawan")
 
-# --- KONEKSI KE GOOGLE SHEETS ---
+# ==========================================
+# 1. KONEKSI GOOGLE SHEETS (POLA GUDANG - SUPER CEPAT)
+# ==========================================
 @st.cache_resource
-def get_client():
+def init_connection_v3():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     try:
         creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
     except:
-        import json
         dict_creds = dict(st.secrets["gcp_service_account"])
         creds = ServiceAccountCredentials.from_json_keyfile_dict(dict_creds, scope)
     return gspread.authorize(creds)
 
-def get_spreadsheet():
-    client = get_client()
-    return client.open_by_url("https://docs.google.com/spreadsheets/d/1nSVOJTyA48REHwPvaWbvVXUupdh_GcrCHvBqbEA-xe8/edit?usp=sharing")
+@st.cache_resource
+def get_all_worksheets():
+    client = init_connection_v3()
+    # Langsung menggunakan URL sesuai instruksi Anda
+    ss = client.open_by_url("https://docs.google.com/spreadsheets/d/1nSVOJTyA48REHwPvaWbvVXUupdh_GcrCHvBqbEA-xe8/edit")
+    
+    # Fungsi bantu untuk membuat tab otomatis jika belum ada di Google Sheets
+    def get_or_create(name, cols):
+        try:
+            return ss.worksheet(name)
+        except gspread.exceptions.WorksheetNotFound:
+            ws = ss.add_worksheet(title=name, rows="100", cols="20")
+            ws.append_row(cols)
+            return ws
 
-# --- NAMA TAB SHEET GOOGLE SHEETS ---
-SHEET_GAJI = "Data_Gaji"
-SHEET_KASBON = "Data_Kasbon_Bonus"
-SHEET_PENGELUARAN = "Data_Pengeluaran_Lain"
-SHEET_KARYAWAN = "Master_Karyawan"
-SHEET_PEKERJAAN = "Master_Pekerjaan"
+    # Menyimpan objek worksheet langsung ke memori agar 0 detik loading
+    return {
+        "gaji": get_or_create("Data_Gaji", ["ID Data", "Hari", "Tanggal", "Nama", "Pekerjaan", "Upah", "Jumlah", "Total"]),
+        "kasbon": get_or_create("Data_Kasbon_Bonus", ["ID Kasbon", "Tanggal", "Nama", "Tipe", "Keterangan", "Nominal"]),
+        "pengeluaran": get_or_create("Data_Pengeluaran_Lain", ["ID Lain", "Keterangan", "Nominal"]),
+        "karyawan": get_or_create("Master_Karyawan", ["Nama Karyawan"]),
+        "pekerjaan": get_or_create("Master_Pekerjaan", ["Jenis Pekerjaan", "Harga Per Pcs"])
+    }
 
-# --- FUNGSI BANTU GOOGLE SHEETS ---
-def fetch_sheet(nama_sheet, kolom_default):
-    try:
-        worksheet = get_spreadsheet().worksheet(nama_sheet)
-        data = worksheet.get_all_records()
-        if len(data) > 0:
-            df = pd.DataFrame(data)
-            for col in kolom_default:
-                if col not in df.columns:
-                    df[col] = ""
-            return df
-        else:
-            return pd.DataFrame(columns=kolom_default)
-    except gspread.exceptions.WorksheetNotFound:
-        worksheet = get_spreadsheet().add_worksheet(title=nama_sheet, rows="100", cols="20")
-        df_kosong = pd.DataFrame(columns=kolom_default)
-        worksheet.update([df_kosong.columns.values.tolist()] + df_kosong.values.tolist())
-        return df_kosong
-    except Exception as e:
-        st.error(f"Error memuat {nama_sheet}: {e}")
-        return pd.DataFrame(columns=kolom_default)
+# Panggil fungsi dan simpan worksheet ke variabel (Sama persis seperti pola Gudang)
+ws = get_all_worksheets()
 
-def save_df_to_sheet(nama_sheet, df):
-    worksheet = get_spreadsheet().worksheet(nama_sheet)
-    worksheet.clear()
-    data_to_write = [df.columns.values.tolist()] + df.fillna("").values.tolist()
-    worksheet.update(data_to_write)
-
-def append_row_to_sheet(nama_sheet, row_data):
-    worksheet = get_spreadsheet().worksheet(nama_sheet)
-    worksheet.append_row(row_data)
-
-# --- SISTEM MEMORI RAM (SUPER CEPAT) ---
-# Data hanya di-download 1x saat aplikasi pertama dibuka
-if "data_loaded" not in st.session_state:
-    with st.spinner("Sinkronisasi awal dari Google Sheets... (Hanya 1 kali)"):
-        st.session_state.df_gaji = fetch_sheet(SHEET_GAJI, ["ID Data", "Hari", "Tanggal", "Nama", "Pekerjaan", "Upah", "Jumlah", "Total"])
-        if "Harga" in st.session_state.df_gaji.columns:
-            st.session_state.df_gaji = st.session_state.df_gaji.rename(columns={"Harga": "Upah"})
-            
-        st.session_state.df_kasbon = fetch_sheet(SHEET_KASBON, ["ID Kasbon", "Tanggal", "Nama", "Tipe", "Keterangan", "Nominal"])
-        st.session_state.df_pengeluaran = fetch_sheet(SHEET_PENGELUARAN, ["ID Lain", "Keterangan", "Nominal"])
+# ==========================================
+# 2. SISTEM MEMORI LOKAL (MEMBACA DATA HANYA 1x)
+# ==========================================
+def load_data_to_memory():
+    # Load Gaji
+    data_gaji = ws["gaji"].get_all_records()
+    df_gaji = pd.DataFrame(data_gaji) if data_gaji else pd.DataFrame(columns=["ID Data", "Hari", "Tanggal", "Nama", "Pekerjaan", "Upah", "Jumlah", "Total"])
+    if "Harga" in df_gaji.columns: df_gaji = df_gaji.rename(columns={"Harga": "Upah"})
+    st.session_state.df_gaji = df_gaji
+    
+    # Load Kasbon & Pengeluaran
+    data_kasbon = ws["kasbon"].get_all_records()
+    st.session_state.df_kasbon = pd.DataFrame(data_kasbon) if data_kasbon else pd.DataFrame(columns=["ID Kasbon", "Tanggal", "Nama", "Tipe", "Keterangan", "Nominal"])
+    
+    data_pengeluaran = ws["pengeluaran"].get_all_records()
+    st.session_state.df_pengeluaran = pd.DataFrame(data_pengeluaran) if data_pengeluaran else pd.DataFrame(columns=["ID Lain", "Keterangan", "Nominal"])
+    
+    # Load Karyawan
+    data_karyawan = ws["karyawan"].get_all_records()
+    if not data_karyawan:
+        df_kar = pd.DataFrame({"Nama Karyawan": ["Teh Eva", "Bi Nyai", "Radi", "Ula", "Sintia", "Mang Ade", "Mang Koko", "Yoga", "Samsul"]})
+        ws["karyawan"].clear()
+        ws["karyawan"].update([df_kar.columns.values.tolist()] + df_kar.values.tolist())
+        st.session_state.df_karyawan = df_kar
+    else:
+        st.session_state.df_karyawan = pd.DataFrame(data_karyawan)
         
-        st.session_state.df_karyawan = fetch_sheet(SHEET_KARYAWAN, ["Nama Karyawan"])
-        if len(st.session_state.df_karyawan) == 0:
-            st.session_state.df_karyawan = pd.DataFrame({"Nama Karyawan": ["Teh Eva", "Bi Nyai", "Radi", "Ula", "Sintia", "Mang Ade", "Mang Koko", "Yoga", "Samsul"]})
-            save_df_to_sheet(SHEET_KARYAWAN, st.session_state.df_karyawan)
-            
-        st.session_state.df_pekerjaan = fetch_sheet(SHEET_PEKERJAAN, ["Jenis Pekerjaan", "Harga Per Pcs"])
-        if len(st.session_state.df_pekerjaan) == 0:
-            st.session_state.df_pekerjaan = pd.DataFrame({
-                "Jenis Pekerjaan": ["Bungkus Patung", "Packing Styrofoam", "Bungkus Cat"],
-                "Harga Per Pcs": [150, 400, 15]
-            })
-            save_df_to_sheet(SHEET_PEKERJAAN, st.session_state.df_pekerjaan)
-            
+    # Load Pekerjaan
+    data_pekerjaan = ws["pekerjaan"].get_all_records()
+    if not data_pekerjaan:
+        df_pek = pd.DataFrame({"Jenis Pekerjaan": ["Bungkus Patung", "Packing Styrofoam", "Bungkus Cat"], "Harga Per Pcs": [150, 400, 15]})
+        ws["pekerjaan"].clear()
+        ws["pekerjaan"].update([df_pek.columns.values.tolist()] + df_pek.values.tolist())
+        st.session_state.df_pekerjaan = df_pek
+    else:
+        st.session_state.df_pekerjaan = pd.DataFrame(data_pekerjaan)
+
+if "data_loaded" not in st.session_state:
+    with st.spinner("Memuat Database dari Server... (Hanya 1x)"):
+        load_data_to_memory()
         st.session_state.data_loaded = True
 
-# Tombol Refresh Manual di Sidebar
-if st.sidebar.button("🔄 Sinkronisasi Ulang Data"):
-    del st.session_state["data_loaded"]
-    st.rerun()
-
-# Membaca data langsung dari memori yang sudah tersimpan
-df_karyawan = st.session_state.df_karyawan
-df_pekerjaan = st.session_state.df_pekerjaan
-daftar_karyawan = df_karyawan["Nama Karyawan"].dropna().tolist() if not df_karyawan.empty else []
-daftar_pekerjaan = df_pekerjaan["Jenis Pekerjaan"].dropna().tolist() if not df_pekerjaan.empty else []
-tarif_pekerjaan = dict(zip(df_pekerjaan["Jenis Pekerjaan"], pd.to_numeric(df_pekerjaan["Harga Per Pcs"], errors='coerce').fillna(0))) if not df_pekerjaan.empty else {}
+# Siapkan list untuk dropdown
+daftar_karyawan = st.session_state.df_karyawan["Nama Karyawan"].dropna().tolist() if not st.session_state.df_karyawan.empty else []
+daftar_pekerjaan = st.session_state.df_pekerjaan["Jenis Pekerjaan"].dropna().tolist() if not st.session_state.df_pekerjaan.empty else []
+tarif_pekerjaan = dict(zip(st.session_state.df_pekerjaan["Jenis Pekerjaan"], pd.to_numeric(st.session_state.df_pekerjaan["Harga Per Pcs"], errors='coerce').fillna(0))) if not st.session_state.df_pekerjaan.empty else {}
 
 # --- MENU NAVIGASI ---
 menu1, menu2, menu3, menu4, menu5, menu6 = st.tabs([
@@ -150,16 +144,12 @@ with menu1:
                 opsi_kerja = ["-"] + daftar_pekerjaan
                 pekerjaan = st.selectbox("Pilih Pekerjaan", opsi_kerja)
             with col2:
-                # Menggunakan text_input agar tidak ada limit atau awalan 0
                 jumlah_str = st.text_input("Jumlah (Pcs)", placeholder="Ketik jumlah pcs (contoh: 500)")
                 
             submitted_input = st.form_submit_button("💾 Simpan Data Pekerjaan", type="primary", use_container_width=True)
             
             if submitted_input:
-                try:
-                    jumlah = int(jumlah_str.strip())
-                except:
-                    jumlah = 0
+                jumlah = int(jumlah_str.strip()) if jumlah_str.strip().isdigit() else 0
                     
                 if pekerjaan != "-" and jumlah > 0:
                     upah = tarif_pekerjaan[pekerjaan]
@@ -169,26 +159,25 @@ with menu1:
                         tgl_str = tanggal.strftime("%Y-%m-%d")
                         
                         # Simpan ke Memori Instan
-                        baris_baru = {"ID Data": id_data, "Hari": nama_hari, "Tanggal": tgl_str, "Nama": nama, "Pekerjaan": pekerjaan, "Upah": upah, "Jumlah": jumlah, "Total": total}
-                        st.session_state.df_gaji = pd.concat([st.session_state.df_gaji, pd.DataFrame([baris_baru])], ignore_index=True)
+                        baris_baru = pd.DataFrame([{"ID Data": id_data, "Hari": nama_hari, "Tanggal": tgl_str, "Nama": nama, "Pekerjaan": pekerjaan, "Upah": upah, "Jumlah": jumlah, "Total": total}])
+                        st.session_state.df_gaji = pd.concat([st.session_state.df_gaji, baris_baru], ignore_index=True)
                         
-                        # Simpan ke Server Latar Belakang
-                        append_row_to_sheet(SHEET_GAJI, [id_data, nama_hari, tgl_str, nama, pekerjaan, upah, jumlah, total])
+                        # Simpan Background ke Sheets
+                        ws["gaji"].append_row([id_data, nama_hari, tgl_str, nama, pekerjaan, upah, jumlah, total])
                         
                         jml_fmt = f"{jumlah:,.0f}".replace(",", ".")
                         st.success(f"✅ Tersimpan Kilat! {jml_fmt} {pekerjaan} untuk {nama}.")
                     except Exception as e:
-                        st.error(f"⚠️ Gagal simpan ke server: {e}")
-                elif pekerjaan == "-":
-                    st.error("⚠️ Gagal simpan! Anda belum memilih Jenis Pekerjaan.")
+                        st.error(f"⚠️ Gagal simpan: {e}")
                 else:
-                    st.error("⚠️ Gagal simpan! Mohon ketik angka/jumlah yang valid.")
+                    st.error("⚠️ Gagal! Mohon pilih pekerjaan dan ketik jumlah yang valid.")
 
 # ==========================================
 # MENU 2: DATABASE & EDIT PEKERJAAN
 # ==========================================
 with menu2:
     st.header("Database Riwayat Pekerjaan (Per Hari)")
+    st.caption("💡 Edit angka di tabel ini 100% tanpa loading. Jangan lupa klik tombol 'Simpan Perubahan' di bawah tabel setelah selesai edit!")
     df_gaji = st.session_state.df_gaji
     
     if len(df_gaji) > 0:
@@ -202,29 +191,39 @@ with menu2:
             
             for tgl, hari in daftar_tanggal:
                 with st.expander(f"📅 Hari **{hari}**, Tanggal **{tgl}**", expanded=True):
-                    df_harian = df_tampil[(df_tampil['Tanggal'] == tgl) & (df_tampil['Hari'] == hari)]
-                    kolom_tampil = ["Hari", "Tanggal", "Nama", "Pekerjaan", "Upah", "Jumlah", "Total"]
-                    df_tabel_bersih = df_harian[kolom_tampil].copy()
+                    df_harian = df_tampil[(df_tampil['Tanggal'] == tgl) & (df_tampil['Hari'] == hari)].copy()
                     
-                    df_tabel_bersih['Upah'] = pd.to_numeric(df_tabel_bersih['Upah'], errors='coerce').fillna(0).apply(lambda x: f"Rp {x:,.0f}".replace(",", "."))
-                    df_tabel_bersih['Total'] = pd.to_numeric(df_tabel_bersih['Total'], errors='coerce').fillna(0).apply(lambda x: f"Rp {x:,.0f}".replace(",", "."))
-                    
-                    df_harian_edit = st.data_editor(df_tabel_bersih, num_rows="dynamic", use_container_width=True, key=f"edit_{tgl}_{hari}")
-                    
-                    if not df_tabel_bersih.equals(df_harian_edit):
-                        df_harian_edit['Upah'] = df_harian_edit['Upah'].astype(str).str.replace("Rp", "").str.replace(".", "").str.strip()
-                        df_harian_edit['Upah'] = pd.to_numeric(df_harian_edit['Upah'], errors='coerce').fillna(0)
-                        df_harian_edit['Jumlah'] = pd.to_numeric(df_harian_edit['Jumlah'], errors='coerce').fillna(0)
-                        df_harian_edit['Total'] = df_harian_edit['Jumlah'] * df_harian_edit['Upah']
+                    with st.form(f"form_edit_harian_{tgl}_{hari}"):
+                        df_harian_edit = st.data_editor(
+                            df_harian, 
+                            num_rows="dynamic", 
+                            use_container_width=True, 
+                            column_config={"ID Data": None}, # ID Data disembunyikan agar bersih
+                            key=f"editor_{tgl}_{hari}"
+                        )
                         
-                        df_harian_edit['ID Data'] = df_harian['ID Data'].values[:len(df_harian_edit)]
-                        
-                        df_sisa = st.session_state.df_gaji[~st.session_state.df_gaji['ID Data'].isin(df_harian['ID Data'])]
-                        df_final = pd.concat([df_sisa, df_harian_edit]).sort_values(by="Tanggal").reset_index(drop=True)
-                        
-                        st.session_state.df_gaji = df_final
-                        save_df_to_sheet(SHEET_GAJI, df_final)
-                        st.rerun()
+                        if st.form_submit_button(f"💾 Simpan Perubahan Tanggal {tgl}", type="primary"):
+                            df_harian_edit['Upah'] = df_harian_edit['Upah'].astype(str).str.replace("Rp", "").str.replace(".", "").str.strip()
+                            df_harian_edit['Upah'] = pd.to_numeric(df_harian_edit['Upah'], errors='coerce').fillna(0)
+                            df_harian_edit['Jumlah'] = pd.to_numeric(df_harian_edit['Jumlah'], errors='coerce').fillna(0)
+                            df_harian_edit['Total'] = df_harian_edit['Jumlah'] * df_harian_edit['Upah']
+                            
+                            for idx, row in df_harian_edit.iterrows():
+                                if pd.isna(row["ID Data"]) or str(row["ID Data"]).strip() == "":
+                                    df_harian_edit.at[idx, "ID Data"] = f"ID-{int(time.time())}-{idx}"
+                            
+                            df_sisa = st.session_state.df_gaji[~st.session_state.df_gaji['ID Data'].isin(df_harian['ID Data'])]
+                            df_final = pd.concat([df_sisa, df_harian_edit]).sort_values(by="Tanggal").reset_index(drop=True)
+                            
+                            st.session_state.df_gaji = df_final
+                            
+                            # Bulk Update ke Sheets (Gaya Gudang)
+                            ws["gaji"].clear()
+                            ws["gaji"].update([df_final.columns.values.tolist()] + df_final.fillna("").values.tolist())
+                            
+                            st.success("Perubahan Berhasil Disimpan!")
+                            time.sleep(0.5)
+                            st.rerun()
         else:
             st.info(f"Tidak ada riwayat pekerjaan untuk {filter_nama}.")
     else:
@@ -249,28 +248,25 @@ with menu3:
             with col_kb4:
                 ket_kb = st.text_input("Keterangan")
             with col_kb5:
-                nominal_str = st.text_input("Nominal (Rp)", placeholder="Ketik nominal...")
+                nominal_str = st.text_input("Nominal (Rp)", placeholder="Ketik nominal (contoh: 50000)")
                 
             if st.form_submit_button("💾 Simpan Data", type="primary", use_container_width=True):
-                try:
-                    nominal_kb = int(nominal_str.strip())
-                except:
-                    nominal_kb = 0
+                nominal_kb = int(nominal_str.strip()) if nominal_str.strip().isdigit() else 0
                     
                 if nominal_kb > 0 and ket_kb.strip() != "":
                     try:
                         id_kb = f"KB-{int(time.time())}"
                         tgl_str = tgl_kb.strftime("%Y-%m-%d")
                         
-                        baris_kb = {"ID Kasbon": id_kb, "Tanggal": tgl_str, "Nama": nama_kb, "Tipe": tipe_kb, "Keterangan": ket_kb, "Nominal": nominal_kb}
-                        st.session_state.df_kasbon = pd.concat([st.session_state.df_kasbon, pd.DataFrame([baris_kb])], ignore_index=True)
+                        baris_kb = pd.DataFrame([{"ID Kasbon": id_kb, "Tanggal": tgl_str, "Nama": nama_kb, "Tipe": tipe_kb, "Keterangan": ket_kb, "Nominal": nominal_kb}])
+                        st.session_state.df_kasbon = pd.concat([st.session_state.df_kasbon, baris_kb], ignore_index=True)
                         
-                        append_row_to_sheet(SHEET_KASBON, [id_kb, tgl_str, nama_kb, tipe_kb, ket_kb, nominal_kb])
+                        ws["kasbon"].append_row([id_kb, tgl_str, nama_kb, tipe_kb, ket_kb, nominal_kb])
                         st.success("✅ Berhasil menyimpan data!")
                     except Exception as e:
                         st.error(f"Gagal: {e}")
                 else:
-                    st.error("⚠️ Mohon isi keterangan dan nominal dengan angka yang valid.")
+                    st.error("⚠️ Mohon isi keterangan dan nominal dengan benar.")
 
 # ==========================================
 # MENU 4: CETAK SLIP GAJI
@@ -381,30 +377,23 @@ with menu5:
             
         submitted_lain = st.form_submit_button("➕ Tambah Pengeluaran Lain", type="primary", use_container_width=True)
         if submitted_lain:
-            try:
-                nominal_lain = int(nominal_lain_str.strip())
-            except:
-                nominal_lain = 0
+            nominal_lain = int(nominal_lain_str.strip()) if nominal_lain_str.strip().isdigit() else 0
                 
             if nominal_lain > 0 and ket_lain.strip() != "":
                 try:
                     id_lain = f"LAIN-{int(time.time())}"
-                    baris_lain = {"ID Lain": id_lain, "Keterangan": ket_lain, "Nominal": nominal_lain}
-                    st.session_state.df_pengeluaran = pd.concat([st.session_state.df_pengeluaran, pd.DataFrame([baris_lain])], ignore_index=True)
+                    baris_lain = pd.DataFrame([{"ID Lain": id_lain, "Keterangan": ket_lain, "Nominal": nominal_lain}])
+                    st.session_state.df_pengeluaran = pd.concat([st.session_state.df_pengeluaran, baris_lain], ignore_index=True)
                     
-                    append_row_to_sheet(SHEET_PENGELUARAN, [id_lain, ket_lain, nominal_lain])
+                    ws["pengeluaran"].append_row([id_lain, ket_lain, nominal_lain])
                     st.success(f"Berhasil menambahkan '{ket_lain}'!")
-                    st.rerun()
                 except Exception as e:
                     st.warning(f"⚠️ Gagal menyimpan: {e}")
             else:
                 st.warning("⚠️ Mohon isi dengan benar.")
 
     if st.button("🖼️ Generate Gambar Resume", type="primary"):
-        try:
-            tarik_uang = int(tarik_uang_str.strip())
-        except:
-            tarik_uang = 0
+        tarik_uang = int(tarik_uang_str.strip()) if tarik_uang_str.strip().isdigit() else 0
             
         df_gaji['Tanggal'] = pd.to_datetime(df_gaji['Tanggal']).dt.date
         df_f_gaji = df_gaji[(df_gaji['Tanggal'] >= tgl_mulai_res) & (df_gaji['Tanggal'] <= tgl_selesai_res)]
@@ -489,65 +478,54 @@ with menu5:
         st.download_button("📥 Unduh Resume", data=byte_resume, file_name=f"Resume_{tgl_mulai_res.strftime('%d%m%Y')}.jpg", mime="image/jpeg")
 
 # ==========================================
-# MENU 6: PENGATURAN (DENGAN TOMBOL HAPUS ❌ INSTAN)
+# MENU 6: PENGATURAN (SISTEM TABEL INSTAN ANTI-LOADING)
 # ==========================================
 with menu6:
     st.header("Pengaturan Master Data")
+    
     col_karyawan, col_pekerjaan = st.columns(2)
     
     with col_karyawan:
-        st.subheader("👥 Daftar Nama Karyawan")
-        with st.form("form_tambah_karyawan", clear_on_submit=True):
-            nama_baru = st.text_input("Nama Karyawan Baru", placeholder="Ketik nama...")
-            if st.form_submit_button("➕ Tambah Karyawan", type="primary", use_container_width=True):
-                if nama_baru.strip() and nama_baru not in daftar_karyawan:
-                    # Update local memory instan
-                    new_df = pd.DataFrame([{"Nama Karyawan": nama_baru.strip()}])
-                    st.session_state.df_karyawan = pd.concat([st.session_state.df_karyawan, new_df], ignore_index=True)
-                    # Update google sheet di background
-                    append_row_to_sheet(SHEET_KARYAWAN, [nama_baru.strip()])
-                    st.success(f"Berhasil menambah {nama_baru}!")
-                    st.rerun()
+        st.subheader("👥 Daftar Karyawan")
+        st.caption("💡 **Cara Menambah:** Klik kotak kosong di bawah lalu ketik.\n\n💡 **Cara Menghapus:** Klik kotak kecil di ujung kiri tabel, lalu tekan tombol **Delete/Backspace** di keyboard.")
         
-        st.write("Daftar Karyawan (Klik ❌ untuk menghapus):")
-        for idx, row in st.session_state.df_karyawan.iterrows():
-            c1, c2 = st.columns([4, 1])
-            with c1:
-                st.text(row['Nama Karyawan'])
-            with c2:
-                if st.button("❌", key=f"del_kar_{idx}"):
-                    # Hapus instan di local memory
-                    st.session_state.df_karyawan = st.session_state.df_karyawan.drop(idx).reset_index(drop=True)
-                    # Kirim sinkronisasi ke sheet
-                    save_df_to_sheet(SHEET_KARYAWAN, st.session_state.df_karyawan)
-                    st.rerun()
+        with st.form("form_tabel_karyawan"):
+            edited_karyawan = st.data_editor(
+                st.session_state.df_karyawan, 
+                num_rows="dynamic", 
+                use_container_width=True
+            )
+            
+            if st.form_submit_button("💾 Simpan Perubahan Karyawan", type="primary", use_container_width=True):
+                edited_karyawan = edited_karyawan[edited_karyawan['Nama Karyawan'].str.strip() != ""]
+                st.session_state.df_karyawan = edited_karyawan
+                
+                # Bulk Update langsung ke tab worksheet
+                ws["karyawan"].clear()
+                ws["karyawan"].update([edited_karyawan.columns.values.tolist()] + edited_karyawan.fillna("").values.tolist())
+                
+                st.success("Berhasil Disimpan!")
+                time.sleep(0.5)
+                st.rerun()
 
     with col_pekerjaan:
-        st.subheader("🛠️ Daftar & Harga Pekerjaan")
-        with st.form("form_tambah_pekerjaan", clear_on_submit=True):
-            pek_baru = st.text_input("Jenis Pekerjaan Baru", placeholder="Ketik jenis pekerjaan...")
-            harga_baru_str = st.text_input("Harga Per Pcs (Rp)", placeholder="Ketik harga...")
-            if st.form_submit_button("➕ Tambah Pekerjaan", type="primary", use_container_width=True):
-                try:
-                    harga_baru = int(harga_baru_str.strip())
-                except:
-                    harga_baru = 0
-                    
-                if pek_baru.strip() and harga_baru > 0:
-                    if pek_baru not in daftar_pekerjaan:
-                        new_df = pd.DataFrame([{"Jenis Pekerjaan": pek_baru.strip(), "Harga Per Pcs": harga_baru}])
-                        st.session_state.df_pekerjaan = pd.concat([st.session_state.df_pekerjaan, new_df], ignore_index=True)
-                        append_row_to_sheet(SHEET_PEKERJAAN, [pek_baru.strip(), harga_baru])
-                        st.success(f"Berhasil menambah {pek_baru}!")
-                        st.rerun()
+        st.subheader("🛠️ Daftar Pekerjaan & Harga")
+        st.caption("💡 Klik sel paling bawah untuk menambah, atau centang kotak di ujung kiri + tombol **Delete** untuk menghapus.")
         
-        st.write("Daftar Pekerjaan (Klik ❌ untuk menghapus):")
-        for idx, row in st.session_state.df_pekerjaan.iterrows():
-            c1, c2 = st.columns([4, 1])
-            with c1:
-                st.text(f"{row['Jenis Pekerjaan']} (Rp {row['Harga Per Pcs']:,.0f})".replace(",", "."))
-            with c2:
-                if st.button("❌", key=f"del_pek_{idx}"):
-                    st.session_state.df_pekerjaan = st.session_state.df_pekerjaan.drop(idx).reset_index(drop=True)
-                    save_df_to_sheet(SHEET_PEKERJAAN, st.session_state.df_pekerjaan)
-                    st.rerun()
+        with st.form("form_tabel_pekerjaan"):
+            edited_pekerjaan = st.data_editor(
+                st.session_state.df_pekerjaan, 
+                num_rows="dynamic", 
+                use_container_width=True
+            )
+            
+            if st.form_submit_button("💾 Simpan Perubahan Pekerjaan", type="primary", use_container_width=True):
+                edited_pekerjaan = edited_pekerjaan[edited_pekerjaan['Jenis Pekerjaan'].str.strip() != ""]
+                st.session_state.df_pekerjaan = edited_pekerjaan
+                
+                ws["pekerjaan"].clear()
+                ws["pekerjaan"].update([edited_pekerjaan.columns.values.tolist()] + edited_pekerjaan.fillna("").values.tolist())
+                
+                st.success("Berhasil Disimpan!")
+                time.sleep(0.5)
+                st.rerun()
