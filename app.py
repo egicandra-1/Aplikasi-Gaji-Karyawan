@@ -14,7 +14,7 @@ HARI_INDO = {
     "Thursday": "Kamis", "Friday": "Jumat", "Saturday": "Sabtu", "Sunday": "Minggu"
 }
 
-URUTAN_HARI = {"Senin": 1, "Selasa": 2, "Rabu": 3, "Kamis": 4, "Jumat": 5, "Sabtu": 6, "Ninggu": 7}
+URUTAN_HARI = {"Senin": 1, "Selasa": 2, "Rabu": 3, "Kamis": 4, "Jumat": 5, "Sabtu": 6, "Minggu": 7}
 
 st.set_page_config(page_title="Sistem Penggajian", layout="wide", page_icon="📝")
 
@@ -207,7 +207,7 @@ with menu1:
                     st.rerun()
 
 # ==========================================
-# MENU 2: DATABASE & EDIT PEKERJAAN (OTOMATIS TANPA TOMBOL SIMPAN)
+# MENU 2: DATABASE & EDIT PEKERJAAN (OTOMATIS TANPA TOMBOL SIMPAN & TANPA INDEX)
 # ==========================================
 with menu2:
     st.header("Database Riwayat Pekerjaan (Per Hari)")
@@ -227,7 +227,6 @@ with menu2:
                 with st.expander(f"📅 Hari **{hari}**, Tanggal **{tgl}**", expanded=True):
                     df_harian = df_tampil[(df_tampil['Tanggal'] == tgl) & (df_tampil['Hari'] == hari)].copy()
                     
-                    # Kolom yang ditampilkan hanya yang penting agar ringkas
                     df_harian_view = df_harian[['ID Data', 'Nama', 'Pekerjaan', 'Upah', 'Jumlah', 'Total']].copy()
                     
                     notif_key = f"notif_2_{tgl}_{hari}"
@@ -236,11 +235,9 @@ with menu2:
                         notif_area_2.success(st.session_state[notif_key])
                         del st.session_state[notif_key]
                     
-                    # Menggunakan callback on_change agar langsung simpan saat Enter ditekan
                     def save_callback(t=tgl, h=hari, orig_ids=df_harian['ID Data'].tolist()):
                         edited_df = st.session_state[f"editor_{t}_{h}"]
                         
-                        # Perbaiki format data angka
                         edited_df['Upah'] = edited_df['Upah'].astype(str).str.replace("Rp", "").str.replace(".", "").str.strip()
                         edited_df['Upah'] = pd.to_numeric(edited_df['Upah'], errors='coerce').fillna(0)
                         edited_df['Jumlah'] = pd.to_numeric(edited_df['Jumlah'], errors='coerce').fillna(0)
@@ -265,7 +262,7 @@ with menu2:
                         num_rows="dynamic", 
                         use_container_width=True, 
                         column_config={"ID Data": None}, 
-                        hide_index=True, 
+                        hide_index=True,  # Menghilangkan kolom angka indeks di sebelah kiri
                         key=f"editor_{tgl}_{hari}",
                         on_change=save_callback
                     )
