@@ -402,7 +402,7 @@ with menu3:
                     st.rerun()
 
 # ==========================================
-# MENU 4: CETAK SLIP GAJI (SLIP GAJI DI DALAM, FONT BESAR 15, CENTER PRESISI)
+# MENU 4: CETAK SLIP GAJI (SLIP GAJI DI DALAM, CENTER, FONT BESAR)
 # ==========================================
 with menu4:
     st.header("Cetak & Unduh Slip Gaji")
@@ -435,6 +435,7 @@ with menu4:
                 
                 if len(df_filter_gaji) > 0 or len(df_filter_kb) > 0:
                     baris_slip = [
+                        ("=================================", 6, "left"),
                         ("SLIP GAJI", 15, "center"),
                         ("=================================", 6, "left"),
                         (f"Nama    : {nama_slip}", 9, "left"),
