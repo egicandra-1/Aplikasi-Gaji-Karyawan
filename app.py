@@ -573,7 +573,7 @@ with menu4:
                     st.download_button(f"📥 Unduh Slip - {nama_slip}", data=byte_slip, file_name=f"Slip_{nama_slip}.jpg", mime="image/jpeg", key=f"dl_{nama_slip}")
 
 # ==========================================
-# MENU 5: LAPORAN RESUME KAS (TABEL KOTAK ASLI PILLOW)
+# MENU 5: LAPORAN RESUME KAS (FONT BESAR, FIT CONTENT, & CENTER)
 # ==========================================
 with menu5:
     st.header("📊 Laporan Resume Kas")
@@ -680,70 +680,87 @@ with menu5:
         sisa_uang = tarik_uang - total_pengeluaran_keseluruhan
         
         # --- MENGGAMBAR TABEL KOTAK ASLI MENGGUNAKAN PILLOW ---
-        scale = 3
-        w = 600 * scale
-        h = 1100 * scale
+        scale = 2
+        w = 800 * scale   # Kanvas disesuaikan proporsinya
+        h = 2500 * scale  # Tinggi aman, akan dipotong (crop) di akhir
         
         img_res = Image.new('RGB', (w, h), color=(255, 255, 255))
         draw = ImageDraw.Draw(img_res)
         
+        # FONT DIPERBESAR SIGNIFIKAN AGAR TERBACA JELAS
         try:
-            f_title = ImageFont.truetype("arialbd.ttf", 15 * scale)
-            f_bold = ImageFont.truetype("arialbd.ttf", 10 * scale)
-            f_reg = ImageFont.truetype("arial.ttf", 10 * scale)
+            f_title = ImageFont.truetype("arialbd.ttf", 36 * scale)
+            f_sub_title = ImageFont.truetype("arial.ttf", 24 * scale)
+            f_bold = ImageFont.truetype("arialbd.ttf", 20 * scale)
+            f_reg = ImageFont.truetype("arial.ttf", 20 * scale)
         except:
+            # Fallback sangat aman jika font arial tidak ada di server
             f_title = ImageFont.load_default()
+            f_sub_title = f_title
             f_bold = f_title
             f_reg = f_title
             
-        margin = 30 * scale
+        margin = 40 * scale
+        table_w = w - (margin * 2)
+        col1_w = int(table_w * 0.6)  # 60% Lebar untuk kolom pertama
+        row_h = 40 * scale           # Tinggi Baris Tabel
         y = margin
         
-        # Judul & Periode
-        draw.text((margin, y), "RESUME LAPORAN KAS", fill=(0, 0, 0), font=f_title)
-        y += 20 * scale
+        # Judul Besar & Rata Tengah
+        title_text = "RESUME LAPORAN KAS"
+        try:
+            bbox_t = draw.textbbox((0, 0), title_text, font=f_title)
+            tw = bbox_t[2] - bbox_t[0]
+        except:
+            tw = len(title_text) * 36 * scale * 0.6
+        x_title = margin + (table_w / 2) - (tw / 2)
+        draw.text((x_title, y), title_text, fill=(0, 0, 0), font=f_title)
+        y += 45 * scale
+        
+        # Periode Rata Tengah
         tgl_str_res = f"Periode: {tgl_mulai_res.strftime('%d/%m/%Y')} s/d {tgl_selesai_res.strftime('%d/%m/%Y')}"
-        draw.text((margin, y), tgl_str_res, fill=(80, 80, 80), font=f_bold)
-        y += 30 * scale
+        try:
+            bbox_p = draw.textbbox((0, 0), tgl_str_res, font=f_sub_title)
+            pw = bbox_p[2] - bbox_p[0]
+        except:
+            pw = len(tgl_str_res) * 24 * scale * 0.6
+        x_periode = margin + (table_w / 2) - (pw / 2)
+        draw.text((x_periode, y), tgl_str_res, fill=(80, 80, 80), font=f_sub_title)
+        y += 60 * scale
         
-        table_w = w - (margin * 2)
-        col1_w = int(table_w * 0.65)
-        row_h = 24 * scale
-        
+        # Fungsi Pembuat Tabel Presisi
         def draw_table_box(title_text, headers, rows_data, start_y, total_row=None, header_bg=(210, 235, 210)):
             curr_y = start_y
-            total_rows_count = len(rows_data) + (1 if total_row else 0) + 2 # Header utama + Subheader
-            box_h = total_rows_count * row_h
             
             # Header Utama (Sub Judul Tabel)
-            draw.rectangle([margin, curr_y, margin + table_w, curr_y + row_h], fill=header_bg, outline=(0, 0, 0), width=1)
-            draw.text((margin + 15 * scale, curr_y + 5 * scale), title_text, fill=(0, 0, 0), font=f_bold)
+            draw.rectangle([margin, curr_y, margin + table_w, curr_y + row_h], fill=header_bg, outline=(0, 0, 0), width=2)
+            draw.text((margin + 15 * scale, curr_y + 8 * scale), title_text, fill=(0, 0, 0), font=f_bold)
             curr_y += row_h
             
             # Subheader Kolom
-            draw.rectangle([margin, curr_y, margin + table_w, curr_y + row_h], fill=(245, 245, 245), outline=(0, 0, 0), width=1)
-            draw.line([margin + col1_w, curr_y, margin + col1_w, curr_y + row_h], fill=(0, 0, 0), width=1)
-            draw.text((margin + 15 * scale, curr_y + 5 * scale), headers[0], fill=(0, 0, 0), font=f_bold)
-            draw.text((margin + col1_w + 15 * scale, curr_y + 5 * scale), headers[1], fill=(0, 0, 0), font=f_bold)
+            draw.rectangle([margin, curr_y, margin + table_w, curr_y + row_h], fill=(245, 245, 245), outline=(0, 0, 0), width=2)
+            draw.line([margin + col1_w, curr_y, margin + col1_w, curr_y + row_h], fill=(0, 0, 0), width=2)
+            draw.text((margin + 15 * scale, curr_y + 8 * scale), headers[0], fill=(0, 0, 0), font=f_bold)
+            draw.text((margin + col1_w + 15 * scale, curr_y + 8 * scale), headers[1], fill=(0, 0, 0), font=f_bold)
             curr_y += row_h
             
             # Isi Baris Data
             for r in rows_data:
-                draw.rectangle([margin, curr_y, margin + table_w, curr_y + row_h], outline=(0, 0, 0), width=1)
-                draw.line([margin + col1_w, curr_y, margin + col1_w, curr_y + row_h], fill=(0, 0, 0), width=1)
-                draw.text((margin + 15 * scale, curr_y + 5 * scale), str(r[0]), fill=(0, 0, 0), font=f_reg)
-                draw.text((margin + col1_w + 15 * scale, curr_y + 5 * scale), str(r[1]), fill=(0, 0, 0), font=f_reg)
+                draw.rectangle([margin, curr_y, margin + table_w, curr_y + row_h], outline=(0, 0, 0), width=2)
+                draw.line([margin + col1_w, curr_y, margin + col1_w, curr_y + row_h], fill=(0, 0, 0), width=2)
+                draw.text((margin + 15 * scale, curr_y + 8 * scale), str(r[0]), fill=(0, 0, 0), font=f_reg)
+                draw.text((margin + col1_w + 15 * scale, curr_y + 8 * scale), str(r[1]), fill=(0, 0, 0), font=f_reg)
                 curr_y += row_h
                 
             # Baris Total (Jika Ada)
             if total_row:
-                draw.rectangle([margin, curr_y, margin + table_w, curr_y + row_h], fill=header_bg, outline=(0, 0, 0), width=1)
-                draw.line([margin + col1_w, curr_y, margin + col1_w, curr_y + row_h], fill=(0, 0, 0), width=1)
-                draw.text((margin + 15 * scale, curr_y + 5 * scale), str(total_row[0]), fill=(0, 0, 0), font=f_bold)
-                draw.text((margin + col1_w + 15 * scale, curr_y + 5 * scale), str(total_row[1]), fill=(0, 0, 0), font=f_bold)
+                draw.rectangle([margin, curr_y, margin + table_w, curr_y + row_h], fill=header_bg, outline=(0, 0, 0), width=2)
+                draw.line([margin + col1_w, curr_y, margin + col1_w, curr_y + row_h], fill=(0, 0, 0), width=2)
+                draw.text((margin + 15 * scale, curr_y + 8 * scale), str(total_row[0]), fill=(0, 0, 0), font=f_bold)
+                draw.text((margin + col1_w + 15 * scale, curr_y + 8 * scale), str(total_row[1]), fill=(0, 0, 0), font=f_bold)
                 curr_y += row_h
                 
-            return curr_y + 20 * scale
+            return curr_y + 30 * scale # Jarak antar tabel
 
         # 1. TABEL GAJI KARYAWAN
         gaji_rows = []
@@ -752,7 +769,7 @@ with menu5:
             val_fmt = f"Rp{val:,.0f}".replace(",", ".")
             gaji_rows.append((k, val_fmt))
         tot_gaji_fmt = f"Rp{total_gaji_semua:,.0f}".replace(",", ".")
-        y = draw_table_box("1. RINCIAN GAJI KARYAWAN", ("NAMA KARYAWAN", "JUMLAH (GAJI)"), gaji_rows, y, total_row=("TOTAL GAJI KARYAWAN", tot_gaji_fmt), header_bg=(183, 222, 181))
+        y = draw_table_box("1. RINCIAN GAJI KARYAWAN", ("NAMA KARYAWAN", "JUMLAH GAJI"), gaji_rows, y, total_row=("TOTAL GAJI KARYAWAN", tot_gaji_fmt), header_bg=(183, 222, 181))
 
         # 2. TABEL PENGELUARAN LAINNYA
         lain_rows = []
@@ -778,8 +795,8 @@ with menu5:
         ]
         y = draw_table_box("3. RINGKASAN SALDO KAS", ("KETERANGAN", "NOMINAL"), ringkasan_rows, y, total_row=("SISA SALDO KAS", sisa_fmt), header_bg=(255, 235, 156))
 
-        # Crop gambar agar pas sesuai tinggi konten
-        img_cropped = img_res.crop((0, 0, w, y))
+        # FIT CONTENT: Potong Gambar Sesuai Tinggi Konten + Margin Bawah
+        img_cropped = img_res.crop((0, 0, w, int(y)))
         
         buf_r = io.BytesIO()
         img_cropped.save(buf_r, format="JPEG", quality=95)
