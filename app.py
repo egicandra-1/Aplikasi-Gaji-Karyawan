@@ -130,11 +130,9 @@ with menu1:
             with col_tgl:
                 tanggal = st.date_input("Pilih Tanggal", datetime.today(), format="DD/MM/YYYY")
                 nama_hari = HARI_INDO[tanggal.strftime("%A")]
-                st.write(f"📅 Hari terpilih: **{nama_hari}**")
                 
             with col_nama:
                 nama = st.selectbox("Pilih Karyawan", daftar_karyawan)
-                st.write(f"👤 Karyawan: **{nama}**")
 
             st.markdown("---")
             st.markdown("### ⚡ Panel Input Harian")
