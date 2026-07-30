@@ -34,7 +34,8 @@ def init_connection():
     return client
 
 client = init_connection()
-spreadsheet = client.open("Database_Aplikasi_Gaji")
+# --- MENGGUNAKAN URL LANGSUNG AGAR ANTI ERROR ---
+spreadsheet = client.open_by_url("https://docs.google.com/spreadsheets/d/1nSVOJTyA48REHwPvaWbvVXUupdh_GcrCHvBqbEA-xe8/edit?usp=sharing")
 
 # --- FUNGSI BANTU GOOGLE SHEETS ---
 def load_data_from_sheet(nama_sheet, kolom_default):
