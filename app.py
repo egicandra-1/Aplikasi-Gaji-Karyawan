@@ -127,6 +127,8 @@ def load_data_to_memory():
         df_pek = pd.DataFrame(data_pekerjaan)
         if "Harga Per Pcs" in df_pek.columns:
             df_pek = df_pek.rename(columns={"Harga Per Pcs": "Upah"})
+        elif len(df_pek.columns) > 1 and df_pek.columns[1] != "Upah":
+            df_pek = df_pek.rename(columns={df_pek.columns[1]: "Upah"})
         st.session_state.df_pekerjaan = df_pek
 
 if "data_loaded" not in st.session_state:
@@ -136,7 +138,11 @@ if "data_loaded" not in st.session_state:
 
 daftar_karyawan = st.session_state.df_karyawan["Nama Karyawan"].dropna().tolist() if not st.session_state.df_karyawan.empty else []
 daftar_pekerjaan = st.session_state.df_pekerjaan["Jenis Pekerjaan"].dropna().tolist() if not st.session_state.df_pekerjaan.empty else []
-tarif_pekerjaan = dict(zip(st.session_state.df_pekerjaan["Jenis Pekerjaan"], pd.to_numeric(st.session_state.df_pekerjaan["Upah"], errors='coerce').fillna(0))) if not st.session_state.df_pekerjaan.empty else {}
+
+# Memastikan pembacaan kolom upah aman dari error
+df_pek_temp = st.session_state.df_pekerjaan
+col_upah_key = "Upah" if "Upah" in df_pek_temp.columns else (df_pek_temp.columns[1] if len(df_pek_temp.columns) > 1 else "Upah")
+tarif_pekerjaan = dict(zip(df_pek_temp["Jenis Pekerjaan"], pd.to_numeric(df_pek_temp[col_upah_key], errors='coerce').fillna(0))) if not df_pek_temp.empty else {}
 
 menu1, menu2, menu3, menu4, menu5, menu6 = st.tabs([
     "📝 1. Input Harian", 
@@ -198,7 +204,7 @@ with menu1:
                 jumlah = int(jumlah_str.strip()) if jumlah_str.strip().isdigit() else 0
                     
                 if pekerjaan != "-" and jumlah > 0:
-                    upah = tarif_pekerjaan[pekerjaan]
+                    upah = tarif_pekerjaan.get(pekerjaan, 0)
                     total = jumlah * upah
                     try:
                         id_data = f"ID-{int(time.time())}"
@@ -700,12 +706,12 @@ with menu6:
             if edited_pek is not None and isinstance(edited_pek, pd.DataFrame):
                 edited_pek = edited_pek[edited_pek['Jenis Pekerjaan'].astype(str).str.strip() != ""]
                 
-                col_upah = edited_pek.columns[1] if len(edited_pek.columns) > 1 else 'Upah'
-                edited_pek[col_upah] = pd.to_numeric(edited_pek[col_upah], errors='coerce').fillna(0)
+                col_upah_target = edited_pek.columns[1] if len(edited_pek.columns) > 1 else 'Upah'
+                edited_pek[col_upah_target] = pd.to_numeric(edited_pek[col_upah_target], errors='coerce').fillna(0)
                 
                 df_final_pek = pd.DataFrame({
                     'Jenis Pekerjaan': edited_pek.iloc[:, 0],
-                    'Upah': edited_pek[col_upah]
+                    'Upah': edited_pek[col_upah_target]
                 })
                 
                 st.session_state.df_pekerjaan = df_final_pek
@@ -716,6 +722,9 @@ with menu6:
         df_pek_view = st.session_state.df_pekerjaan.copy()
         if "Harga Per Pcs" in df_pek_view.columns:
             df_pek_view = df_pek_view.rename(columns={"Harga Per Pcs": "Upah"})
+        elif len(df_pek_view.columns) > 1 and df_pek_view.columns[1] != "Upah":
+            df_pek_view = df_pek_view.rename(columns={df_pek_view.columns[1]: "Upah"})
+            
         df_pek_view['Upah'] = pd.to_numeric(df_pek_view['Upah'], errors='coerce').fillna(0)
 
         st.data_editor(
