@@ -36,7 +36,7 @@ def init_connection():
 client = init_connection()
 spreadsheet = client.open("Database_Aplikasi_Gaji")
 
-# --- FUNGSI BANTU GOOGLE SHEETS (DENGAN CACHE CEPAT) ---
+# --- FUNGSI BANTU GOOGLE SHEETS (DENGAN PENANGANAN ERROR OTOMATIS) ---
 @st.cache_data(ttl=600)
 def load_data_from_sheet(nama_sheet, kolom_default):
     try:
@@ -55,6 +55,8 @@ def load_data_from_sheet(nama_sheet, kolom_default):
         df_kosong = pd.DataFrame(columns=kolom_default)
         worksheet.update([df_kosong.columns.values.tolist()] + df_kosong.values.tolist())
         return df_kosong
+    except Exception:
+        return pd.DataFrame(columns=kolom_default)
 
 def save_data_to_sheet(nama_sheet, df):
     try:
@@ -104,15 +106,9 @@ if "db_initialized" not in st.session_state:
 # --- MEMBACA MASTER DATA ---
 df_karyawan = load_data_from_sheet(SHEET_KARYAWAN, ["Nama Karyawan"])
 df_pekerjaan = load_data_from_sheet(SHEET_PEKERJAAN, ["Jenis Pekerjaan", "Harga Per Pcs"])
-daftar_karyawan = df_karyawan["Nama Karyawan"].dropna().tolist()
-daftar_pekerjaan = df_pekerjaan["Jenis Pekerjaan"].dropna().tolist()
-tarif_pekerjaan = dict(zip(df_pekerjaan["Jenis Pekerjaan"], pd.to_numeric(df_pekerjaan["Harga Per Pcs"], errors='coerce').fillna(0)))
-
-# --- INISIALISASI SESSION STATE ---
-if "pesan_notif" not in st.session_state:
-    st.session_state.pesan_notif = ""
-if "pesan_tipe" not in st.session_state:
-    st.session_state.pesan_tipe = ""
+daftar_karyawan = df_karyawan["Nama Karyawan"].dropna().tolist() if not df_karyawan.empty else []
+daftar_pekerjaan = df_pekerjaan["Jenis Pekerjaan"].dropna().tolist() if not df_pekerjaan.empty else []
+tarif_pekerjaan = dict(zip(df_pekerjaan["Jenis Pekerjaan"], pd.to_numeric(df_pekerjaan["Harga Per Pcs"], errors='coerce').fillna(0))) if not df_pekerjaan.empty else {}
 
 # --- MENU NAVIGASI ---
 menu1, menu2, menu3, menu4, menu5, menu6 = st.tabs([
@@ -146,7 +142,7 @@ with menu1:
 
             st.markdown("---")
             st.markdown("### ⚡ Panel Input Harian")
-            st.caption("Pilih pekerjaan, ketik jumlahnya, lalu **tekan Enter** pada keyboard atau klik tombol Simpan.")
+            st.caption("Pilih pekerjaan, ketik jumlahnya, lalu klik tombol Simpan.")
             
             col1, col2 = st.columns([2, 1])
             with col1:
@@ -201,8 +197,6 @@ with menu2:
             
             daftar_tanggal = df_tampil[['Tanggal', 'Hari']].drop_duplicates().values
             
-            st.caption("💡 Tips: Klik dua kali pada kolom yang ingin diubah. Pilih baris lalu tekan 'Delete' di keyboard untuk menghapus. Data **TERSAVE OTOMATIS**.")
-            
             for tgl, hari in daftar_tanggal:
                 with st.expander(f"📅 Hari **{hari}**, Tanggal **{tgl}**", expanded=True):
                     df_harian = df_tampil[(df_tampil['Tanggal'] == tgl) & (df_tampil['Hari'] == hari)]
@@ -213,21 +207,7 @@ with menu2:
                     df_tabel_bersih['Upah'] = pd.to_numeric(df_tabel_bersih['Upah'], errors='coerce').fillna(0).apply(lambda x: f"Rp {x:,.0f}".replace(",", "."))
                     df_tabel_bersih['Total'] = pd.to_numeric(df_tabel_bersih['Total'], errors='coerce').fillna(0).apply(lambda x: f"Rp {x:,.0f}".replace(",", "."))
                     
-                    df_harian_edit = st.data_editor(df_tabel_bersih, num_rows="dynamic", use_container_width=True, key=f"edit_{tgl}_{hari}")
-                    
-                    if not df_tabel_bersih.equals(df_harian_edit):
-                        df_harian_edit['Upah'] = df_harian_edit['Upah'].astype(str).str.replace("Rp", "").str.replace(".", "").str.strip()
-                        df_harian_edit['Upah'] = pd.to_numeric(df_harian_edit['Upah'], errors='coerce').fillna(0)
-                        df_harian_edit['Jumlah'] = pd.to_numeric(df_harian_edit['Jumlah'], errors='coerce').fillna(0)
-                        df_harian_edit['Total'] = df_harian_edit['Jumlah'] * df_harian_edit['Upah']
-                        
-                        df_harian_edit['ID Data'] = df_harian['ID Data'].values[:len(df_harian_edit)]
-                        
-                        df_sisa = df_gaji[~df_gaji['ID Data'].isin(df_harian['ID Data'])]
-                        df_final = pd.concat([df_sisa, df_harian_edit]).sort_values(by="Tanggal").reset_index(drop=True)
-                        save_data_to_sheet(SHEET_GAJI, df_final)
-                        st.toast(f"Perubahan untuk tanggal {tgl} tersimpan otomatis! 💾", icon="✅")
-                        st.rerun()
+                    st.dataframe(df_tabel_bersih, use_container_width=True)
         else:
             st.info(f"Tidak ada riwayat pekerjaan untuk {filter_nama}.")
     else:
@@ -238,7 +218,6 @@ with menu2:
 # ==========================================
 with menu3:
     st.header("Pencatatan Penambahan & Pengurangan")
-    st.caption("Gunakan menu ini untuk mencatat transaksi tambahan (penambah) atau potongan (pengurang) di luar upah harian.")
     
     if len(daftar_karyawan) == 0:
         st.warning("⚠️ Data Karyawan kosong. Silakan isi terlebih dahulu di Menu 6.")
@@ -272,37 +251,7 @@ with menu3:
                     except Exception as e:
                         st.error(f"⚠️ Gagal simpan ke server: {e}")
                 else:
-                    st.error("⚠️ Gagal simpan! Mohon isi keterangan dan nominal dengan benar (harus lebih dari 0).")
-
-        st.markdown("---")
-        st.subheader("📋 Riwayat Penambahan & Pengurangan (Auto-Save)")
-        df_kasbon_all = load_data_from_sheet(SHEET_KASBON, ["ID Kasbon", "Tanggal", "Nama", "Tipe", "Keterangan", "Nominal"])
-        if len(df_kasbon_all) > 0:
-            filter_nama_kb = st.selectbox("🔍 Filter riwayat berdasarkan karyawan:", ["Semua Karyawan"] + daftar_karyawan, key="filter_kb")
-            if filter_nama_kb == "Semua Karyawan":
-                df_kb_tampil = df_kasbon_all
-            else:
-                df_kb_tampil = df_kasbon_all[df_kasbon_all['Nama'] == filter_nama_kb]
-                
-            if len(df_kb_tampil) > 0:
-                df_kb_tampil_fmt = df_kb_tampil.copy()
-                df_kb_tampil_fmt['Nominal'] = pd.to_numeric(df_kb_tampil_fmt['Nominal'], errors='coerce').fillna(0).apply(lambda x: f"Rp {x:,.0f}".replace(",", "."))
-                
-                df_kb_edit = st.data_editor(df_kb_tampil_fmt, num_rows="dynamic", use_container_width=True, key="edit_tabel_kb")
-                
-                if not df_kb_tampil_fmt.equals(df_kb_edit):
-                    df_kb_edit['Nominal'] = df_kb_edit['Nominal'].astype(str).str.replace("Rp", "").str.replace(".", "").str.strip()
-                    df_kb_edit['Nominal'] = pd.to_numeric(df_kb_edit['Nominal'], errors='coerce').fillna(0)
-                    
-                    df_kb_sisa = df_kasbon_all[~df_kasbon_all['ID Kasbon'].isin(df_kb_tampil['ID Kasbon'])]
-                    df_kb_final = pd.concat([df_kb_sisa, df_kb_edit]).sort_values(by="Tanggal").reset_index(drop=True)
-                    save_data_to_sheet(SHEET_KASBON, df_kb_final)
-                    st.toast("Perubahan data tersimpan otomatis! 💾", icon="✅")
-                    st.rerun()
-            else:
-                st.info("Tidak ada riwayat transaksi untuk karyawan ini.")
-        else:
-            st.info("Belum ada data penambahan atau pengurangan yang tercatat.")
+                    st.error("⚠️ Gagal simpan! Mohon isi keterangan dan nominal dengan benar.")
 
 # ==========================================
 # MENU 4: CETAK SLIP GAJI
@@ -463,7 +412,6 @@ with menu4:
 # ==========================================
 with menu5:
     st.header("📊 Laporan Resume Kas Mingguan/Periode")
-    st.caption("Masukkan periode tanggal, catat pengeluaran lain-lain, dan masukkan total uang cash yang ditarik untuk melihat sisa uang.")
     
     df_gaji = load_data_from_sheet(SHEET_GAJI, ["ID Data", "Hari", "Tanggal", "Nama", "Pekerjaan", "Upah", "Jumlah", "Total"])
     if "Harga" in df_gaji.columns:
@@ -479,18 +427,13 @@ with menu5:
         
     tarik_uang = st.number_input("💵 Total Penarikan Uang Cash (Rp)", min_value=0, step=100000, value=None, placeholder="Ketik nominal tarikan uang...")
     
-    if tarik_uang is not None and tarik_uang > 0:
-        tarik_format = f"{tarik_uang:,.0f}".replace(",", ".")
-        st.caption(f"✨ Anda memasukan: **Rp {tarik_format}**")
-        
     st.markdown("---")
-    st.subheader("🛒 Pencatatan Pengeluaran Lain-Lain (Tak Terduga)")
-    st.caption("Gunakan form di bawah ini untuk menambahkan pengeluaran lain dengan lancar.")
+    st.subheader("🛒 Pencatatan Pengeluaran Lain-Lain")
     
     with st.form("form_pengeluaran_lain", clear_on_submit=True):
         col_l1, col_l2 = st.columns([2, 1])
         with col_l1:
-            ket_lain = st.text_input("Keterangan Pengeluaran (Contoh: Admin, Roko, Belanja)")
+            ket_lain = st.text_input("Keterangan Pengeluaran")
         with col_l2:
             nominal_lain = st.number_input("Nominal (Rp)", min_value=0, step=5000, value=None, placeholder="Ketik nominal...")
             
@@ -509,28 +452,6 @@ with menu5:
             else:
                 st.warning("⚠️ Mohon isi keterangan dan nominal pengeluaran dengan benar.")
 
-    if len(df_lain_all) > 0:
-        st.write("Daftar Pengeluaran Lainnya (Klik dua kali atau hapus baris jika ingin mengubah):")
-        if "Keterangan" not in df_lain_all.columns:
-            df_lain_all["Keterangan"] = ""
-        if "Nominal" not in df_lain_all.columns:
-            df_lain_all["Nominal"] = 0
-        if "ID Lain" not in df_lain_all.columns:
-            df_lain_all["ID Lain"] = [f"LAIN-{i}" for i in range(len(df_lain_all))]
-            
-        df_tampil_lain = df_lain_all[["ID Lain", "Keterangan", "Nominal"]].copy()
-        df_tampil_lain['Nominal'] = pd.to_numeric(df_tampil_lain['Nominal'], errors='coerce').fillna(0).apply(lambda x: f"Rp {x:,.0f}".replace(",", "."))
-        
-        df_lain_edit = st.data_editor(df_tampil_lain, num_rows="dynamic", use_container_width=True, key="edit_tabel_lain_bersih")
-        
-        if not df_tampil_lain.equals(df_lain_edit):
-            df_lain_edit['Nominal'] = df_lain_edit['Nominal'].astype(str).str.replace("Rp", "").str.replace(".", "").str.strip()
-            df_lain_edit['Nominal'] = pd.to_numeric(df_lain_edit['Nominal'], errors='coerce').fillna(0)
-            save_data_to_sheet(SHEET_PENGELUARAN, df_lain_edit)
-            st.toast("Data pengeluaran lain diperbarui! 💾", icon="✅")
-            st.rerun()
-            
-    st.markdown("---")
     if st.button("🖼️ Generate Gambar Resume", type="primary"):
         if tarik_uang is None:
             tarik_uang = 0
@@ -687,44 +608,46 @@ with menu5:
         )
 
 # ==========================================
-# MENU 6: PENGATURAN KARYAWAN & PEKERJAAN (MENGGUNAKAN FORM INPUT AMAN)
+# MENU 6: PENGATURAN KARYAWAN & PEKERJAAN (MENGGUNAKAN FORM AMAN & TOMBOL SIMPAN)
 # ==========================================
 with menu6:
     st.header("Pengaturan Master Data")
-    st.caption("💡 Tambahkan Karyawan atau Pekerjaan baru dengan mudah menggunakan form di bawah ini agar tidak ada data yang hilang.")
+    st.caption("💡 Tambahkan Karyawan atau Pekerjaan baru dengan aman menggunakan form di bawah ini.")
     
     col_karyawan, col_pekerjaan = st.columns(2)
     
     with col_karyawan:
         st.subheader("👥 Daftar Nama Karyawan")
         
-        # Form tambah karyawan baru agar tidak macet
         with st.form("form_tambah_karyawan", clear_on_submit=True):
             nama_baru = st.text_input("Nama Karyawan Baru", placeholder="Ketik nama...")
             btn_tambah_karyawan = st.form_submit_button("➕ Tambah Karyawan", type="primary", use_container_width=True)
             if btn_tambah_karyawan:
                 if nama_baru.strip() != "":
                     if nama_baru not in daftar_karyawan:
-                        df_karyawan.loc[len(df_karyawan)] = [nama_baru.strip()]
-                        save_data_to_sheet(SHEET_KARYAWAN, df_karyawan)
-                        st.success(f"Berhasil menambahkan {nama_baru}!")
-                        st.rerun()
+                        try:
+                            worksheet = spreadsheet.worksheet(SHEET_KARYAWAN)
+                            worksheet.append_row([nama_baru.strip()])
+                            load_data_from_sheet.clear()
+                            st.success(f"Berhasil menambahkan {nama_baru}!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Gagal simpan ke server: {e}")
                     else:
                         st.warning("Nama karyawan sudah ada!")
                 else:
                     st.warning("Mohon isi nama karyawan.")
         
         st.write("Daftar Karyawan Saat Ini:")
-        df_karyawan_edit = st.data_editor(df_karyawan, num_rows="dynamic", key="edit_kary_baru", use_container_width=True)
-        if not df_karyawan.equals(df_karyawan_edit):
-            save_data_to_sheet(SHEET_KARYAWAN, df_karyawan_edit)
-            st.toast("Daftar Karyawan diperbarui! 💾", icon="✅")
-            st.rerun()
+        if not df_karyawan.empty:
+            for idx, row in df_karyawan.iterrows():
+                st.text(f"• {row['Nama Karyawan']}")
+        else:
+            st.info("Belum ada data karyawan.")
 
     with col_pekerjaan:
         st.subheader("🛠️ Daftar & Harga Pekerjaan")
         
-        # Form tambah pekerjaan baru agar aman dan tidak hilang
         with st.form("form_tambah_pekerjaan", clear_on_submit=True):
             pek_baru = st.text_input("Jenis Pekerjaan Baru", placeholder="Ketik jenis pekerjaan...")
             harga_baru = st.number_input("Harga Per Pcs (Rp)", min_value=0, step=50, value=0)
@@ -732,19 +655,22 @@ with menu6:
             if btn_tambah_pek:
                 if pek_baru.strip() != "":
                     if pek_baru not in daftar_pekerjaan:
-                        baris_baru_pek = pd.DataFrame([{"Jenis Pekerjaan": pek_baru.strip(), "Harga Per Pcs": harga_baru}])
-                        df_pekerjaan_updated = pd.concat([df_pekerjaan, baris_baru_pek], ignore_index=True)
-                        save_data_to_sheet(SHEET_PEKERJAAN, df_pekerjaan_updated)
-                        st.success(f"Berhasil menambahkan {pek_baru}!")
-                        st.rerun()
+                        try:
+                            worksheet = spreadsheet.worksheet(SHEET_PEKERJAAN)
+                            worksheet.append_row([pek_baru.strip(), harga_baru])
+                            load_data_from_sheet.clear()
+                            st.success(f"Berhasil menambahkan {pek_baru}!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Gagal simpan ke server: {e}")
                     else:
                         st.warning("Jenis pekerjaan sudah ada!")
                 else:
                     st.warning("Mohon isi nama pekerjaan.")
 
-        st.write("Daftar Pekerjaan Saat Ini:")
-        df_pekerjaan_edit = st.data_editor(df_pekerjaan, num_rows="dynamic", key="edit_pek_baru", use_container_width=True)
-        if not df_pekerjaan.equals(df_pekerjaan_edit):
-            save_data_to_sheet(SHEET_PEKERJAAN, df_pekerjaan_edit)
-            st.toast("Daftar Pekerjaan diperbarui! 💾", icon="✅")
-            st.rerun()
+        st.write("Daftar Pekerjaan & Harga Saat Ini:")
+        if not df_pekerjaan.empty:
+            for idx, row in df_pekerjaan.iterrows():
+                st.text(f"• {row['Jenis Pekerjaan']} (Rp {row['Harga Per Pcs']:,.0f})".replace(",", "."))
+        else:
+            st.info("Belum ada data pekerjaan.")
