@@ -135,8 +135,8 @@ with menu1:
                 nama = st.selectbox("Pilih Karyawan", daftar_karyawan)
 
             st.markdown("---")
-            # MENGHILANGKAN IKON RANTAI AGAR SHIFT+TAB HANYA 1X
-            st.markdown("<b><h3 style='margin:0px;'>⚡ Panel Input Harian</h3></b><br>", unsafe_allow_html=True)
+            # Trik Anti-Rantai: Menggunakan tag <div> biasa yang dibesarkan agar tidak dibaca sebagai judul oleh Streamlit
+            st.markdown("<div style='font-size: 22px; font-weight: bold; margin-bottom: 15px;'>⚡ Panel Input Harian</div>", unsafe_allow_html=True)
             
             col1, col2 = st.columns([2, 1])
             with col1:
@@ -172,7 +172,7 @@ with menu1:
                     st.error("⚠️ Gagal! Mohon pilih pekerjaan dan ketik jumlah yang valid.")
 
 # ==========================================
-# MENU 2: DATABASE & EDIT Pekerjaan
+# MENU 2: DATABASE & EDIT PEKERJAAN
 # ==========================================
 with menu2:
     st.header("Database Riwayat Pekerjaan (Per Hari)")
