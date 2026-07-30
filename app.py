@@ -402,7 +402,7 @@ with menu3:
                     st.rerun()
 
 # ==========================================
-# MENU 4: CETAK SLIP GAJI (FIT KONTEN RAPAT, TANPA LEBAR BERLEBIH)
+# MENU 4: CETAK SLIP GAJI (RENDER VEKTOR HD, FIT KONTEN PRESISI)
 # ==========================================
 with menu4:
     st.header("Cetak & Unduh Slip Gaji")
@@ -435,11 +435,11 @@ with menu4:
                 
                 if len(df_filter_gaji) > 0 or len(df_filter_kb) > 0:
                     baris_slip = [
-                        ("       SLIP GAJI KARYAWAN", 15),
-                        ("=================================", 10),
+                        ("       SLIP GAJI KARYAWAN", 14),
+                        ("==================================", 10),
                         (f"Nama    : {nama_slip}", 12),
                         (f"Periode : {tgl_mulai_slip.strftime('%d/%m/%Y')} - {tgl_selesai_slip.strftime('%d/%m/%Y')}", 12),
-                        ("=================================", 10),
+                        ("==================================", 10),
                         ("", 4)
                     ]
                     
@@ -468,30 +468,44 @@ with menu4:
                         baris_slip.append(("", 3))
                         
                     total_bersih = total_upah + tot_tambah - tot_kurang
-                    baris_slip.append(("=================================", 10))
+                    baris_slip.append(("==================================", 10))
                     baris_slip.append((f"TOTAL GAJI : Rp {total_bersih:,.0f}".replace(",", "."), 13))
-                    baris_slip.append(("=================================", 10))
+                    baris_slip.append(("==================================", 10))
                     
-                    # Kanvas super rapat fit konten dengan resolusi HD 4x, TANPA parameter width di st.image agar tampil natural
+                    # Menggunakan Skala HD 4x dengan Render Font Vektor Presisi (Fit Konten Sempurna)
                     scale = 4
-                    base_w = 260
-                    total_h = sum([sz for _, sz in baris_slip]) + 8
+                    try:
+                        font_test = ImageFont.truetype("arial.ttf", 12 * scale)
+                    except:
+                        font_test = ImageFont.load_default()
+                        
+                    dummy_img = Image.new('RGB', (100, 100))
+                    dummy_draw = ImageDraw.Draw(dummy_img)
                     
-                    img_slip = Image.new('RGB', (base_w * scale, total_h * scale), color=(255, 255, 255))
+                    max_w = 0
+                    total_h = 10 * scale
+                    
+                    for txt, sz in baris_slip:
+                        f_sz = ImageFont.truetype("arial.ttf", sz * scale) if 'ImageFont' in globals() else font_test
+                        try:
+                            bbox = dummy_draw.textbbox((0, 0), txt, font=f_sz)
+                            w_txt = bbox[2] - bbox[0]
+                        except:
+                            w_txt = len(txt) * sz * scale * 0.6
+                        if w_txt > max_w:
+                            max_w = w_txt
+                        total_h += sz * scale
+                        
+                    canvas_w = int(max_w) + (24 * scale)
+                    canvas_h = int(total_h) + (10 * scale)
+                    
+                    img_slip = Image.new('RGB', (canvas_w, canvas_h), color=(255, 255, 255))
                     draw_slip = ImageDraw.Draw(img_slip)
                     
-                    try:
-                        font_def = ImageFont.load_default()
-                    except:
-                        font_def = None
-                        
-                    y_s = 6 * scale
+                    y_s = 8 * scale
                     for txt, sz in baris_slip:
-                        try:
-                            f_used = ImageFont.truetype("arial.ttf", sz * scale) if font_def else font_def
-                        except:
-                            f_used = font_def
-                        draw_slip.text((6 * scale, y_s), txt, font=f_used, fill=(0, 0, 0))
+                        f_sz = ImageFont.truetype("arial.ttf", sz * scale) if 'ImageFont' in globals() else font_test
+                        draw_slip.text((10 * scale, y_s), txt, font=f_sz, fill=(0, 0, 0))
                         y_s += sz * scale
                         
                     buf_s = io.BytesIO()
@@ -499,7 +513,7 @@ with menu4:
                     byte_slip = buf_s.getvalue()
                     
                     st.subheader(f"📄 Slip Gaji: {nama_slip}")
-                    st.image(byte_slip) # Tanpa width agar fit konten rapi natural tanpa ruang putih
+                    st.image(byte_slip)
                     st.download_button(f"📥 Unduh Slip - {nama_slip}", data=byte_slip, file_name=f"Slip_{nama_slip}.jpg", mime="image/jpeg", key=f"dl_{nama_slip}")
 
 # ==========================================
