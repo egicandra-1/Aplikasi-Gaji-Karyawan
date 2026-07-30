@@ -402,7 +402,7 @@ with menu3:
                     st.rerun()
 
 # ==========================================
-# MENU 4: CETAK SLIP GAJI (PERSIS 100% SEPERTI CONTOH REFERENSI)
+# MENU 4: CETAK SLIP GAJI (SETENGAH SPASI & 1 SPASI KOSONG KETIKA BERALIH HARI)
 # ==========================================
 with menu4:
     st.header("Cetak & Unduh Slip Gaji")
@@ -446,8 +446,7 @@ with menu4:
                     first_day = True
                     for tgl, data_harian in df_filter_gaji.groupby('Tanggal'):
                         if not first_day:
-                            baris_slip.append(("", 9, "left"))
-                            baris_slip.append(("", 9, "left")) # 2 spasi kosong sebelum masuk ke tanggal hari berikutnya
+                            baris_slip.append(("", 9, "left")) # 1 spasi kosong saat beralih hari
                         first_day = False
                         
                         hari_indo = HARI_INDO.get(tgl.strftime("%A"), "")
@@ -468,7 +467,6 @@ with menu4:
                     tot_tambah, tot_kurang = 0, 0
                     if len(df_filter_kb) > 0:
                         baris_slip.append(("", 9, "left"))
-                        baris_slip.append(("", 9, "left"))
                         baris_slip.append(("--- CATATAN TAMBAHAN ---", 9, "left"))
                         for _, rkb in df_filter_kb.iterrows():
                             nom = float(rkb['Nominal'])
@@ -480,7 +478,6 @@ with menu4:
                         
                     total_bersih = total_upah + tot_tambah - tot_kurang
                     tot_bersih_fmt = f"Rp {total_bersih:,.0f}".replace(",", ".")
-                    baris_slip.append(("", 9, "left"))
                     baris_slip.append(("", 9, "left"))
                     baris_slip.append(("=================================", 6, "left"))
                     baris_slip.append((f"TOTAL GAJI DITERIMA: {tot_bersih_fmt}", 9, "left"))
@@ -504,7 +501,8 @@ with menu4:
                     max_w = 0
                     line_heights = []
                     for txt, sz, align in baris_slip:
-                        h_line = int(sz * scale * 0.85) if txt != "" else int(9 * scale * 0.4)
+                        # Setengah spasi / jarak rapat (faktor 0.65 untuk detail pekerjaan, 0.4 untuk spasi kosong)
+                        h_line = int(sz * scale * 0.65) if txt != "" else int(9 * scale * 0.4)
                         line_heights.append(h_line)
                         if font_path and txt != "":
                             try:
@@ -526,7 +524,6 @@ with menu4:
                         if w_txt > max_w:
                             max_w = w_txt
                             
-                    # Lebar kanvas dikunci tetap seragam menggunakan lebar garis pemisah "================================="
                     try:
                         f_sep = ImageFont.truetype(font_path, 6 * scale) if font_path else font_test
                         sep_bbox = dummy_draw.textbbox((0, 0), "=================================", font=f_sep)
