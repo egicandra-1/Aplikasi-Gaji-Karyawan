@@ -402,7 +402,7 @@ with menu3:
                     st.rerun()
 
 # ==========================================
-# MENU 4: CETAK SLIP GAJI (FIT KONTEN PERSIS SEPERTI GAMBAR CONTOH)
+# MENU 4: CETAK SLIP GAJI (FIT KONTEN PERSIS CONTOH STRUK KLASIK)
 # ==========================================
 with menu4:
     st.header("Cetak & Unduh Slip Gaji")
@@ -435,47 +435,47 @@ with menu4:
                 
                 if len(df_filter_gaji) > 0 or len(df_filter_kb) > 0:
                     baris_slip = [
-                        ("       SLIP GAJI KARYAWAN", 16),
-                        ("==================================", 12),
-                        (f"Nama    : {nama_slip}", 14),
-                        (f"Periode : {tgl_mulai_slip.strftime('%d/%m/%Y')} - {tgl_selesai_slip.strftime('%d/%m/%Y')}", 14),
-                        ("==================================", 12),
-                        ("", 8)
+                        ("       SLIP GAJI KARYAWAN", 14),
+                        ("===================================", 10),
+                        (f"Nama    : {nama_slip}", 12),
+                        (f"Periode : {tgl_mulai_slip.strftime('%d/%m/%Y')} - {tgl_selesai_slip.strftime('%d/%m/%Y')}", 12),
+                        ("===================================", 10),
+                        ("", 6)
                     ]
                     
                     total_upah = 0
                     for tgl, data_harian in df_filter_gaji.groupby('Tanggal'):
-                        baris_slip.append((f"Tgl: {tgl.strftime('%d/%m/%Y')}", 12))
+                        baris_slip.append((f"Tgl: {tgl.strftime('%d/%m/%Y')}", 10))
                         sub = 0
                         for _, row in data_harian.iterrows():
                             j, u, t = float(row['Jumlah']), float(row['Upah']), float(row['Total'])
-                            baris_slip.append((f"- {row['Pekerjaan']}", 12))
-                            baris_slip.append((f"    {j:,.0f} pcs x Rp{u:,.0f} = Rp{t:,.0f}".replace(",", "."), 12))
+                            baris_slip.append((f"- {row['Pekerjaan']}", 10))
+                            baris_slip.append((f"    {j:,.0f} pcs x Rp{u:,.0f} = Rp{t:,.0f}".replace(",", "."), 10))
                             sub += t
-                        baris_slip.append((f"Sub-total: Rp{sub:,.0f}".replace(",", "."), 12))
-                        baris_slip.append(("", 6))
+                        baris_slip.append((f"Sub-total: Rp{sub:,.0f}".replace(",", "."), 10))
+                        baris_slip.append(("", 4))
                         total_upah += sub
                         
                     tot_tambah, tot_kurang = 0, 0
                     if len(df_filter_kb) > 0:
-                        baris_slip.append(("--- CATATAN TAMBAHAN ---", 12))
+                        baris_slip.append(("--- CATATAN TAMBAHAN ---", 10))
                         for _, rkb in df_filter_kb.iterrows():
                             nom = float(rkb['Nominal'])
                             sign = "+" if rkb['Tipe'] == "Penambahan" else "-"
-                            baris_slip.append((f" {sign} {rkb['Keterangan']} (Rp {nom:,.0f})".replace(",", "."), 12))
+                            baris_slip.append((f" {sign} {rkb['Keterangan']} (Rp {nom:,.0f})".replace(",", "."), 10))
                             if rkb['Tipe'] == "Penambahan": tot_tambah += nom
                             else: tot_kurang += nom
-                        baris_slip.append(("", 6))
+                        baris_slip.append(("", 4))
                         
                     total_bersih = total_upah + tot_tambah - tot_kurang
-                    baris_slip.append(("==================================", 12))
-                    baris_slip.append((f"TOTAL GAJI : Rp {total_bersih:,.0f}".replace(",", "."), 15))
-                    baris_slip.append(("==================================", 12))
+                    baris_slip.append(("===================================", 10))
+                    baris_slip.append((f"TOTAL GAJI : Rp {total_bersih:,.0f}".replace(",", "."), 13))
+                    baris_slip.append(("===================================", 10))
                     
-                    # Kanvas diset pas tanpa ruang kosong berlebih, dengan skala tinggi 4x agar super tajam saat di-zoom
+                    # Menggunakan Skala 4x untuk ketajaman HD sempurna, dan lebar pas tanpa sisa ruang putih
                     scale = 4
-                    base_w = 320
-                    total_h = sum([sz for _, sz in baris_slip]) + 15
+                    base_w = 300
+                    total_h = sum([sz for _, sz in baris_slip]) + 10
                     
                     img_slip = Image.new('RGB', (base_w * scale, total_h * scale), color=(255, 255, 255))
                     draw_slip = ImageDraw.Draw(img_slip)
@@ -485,13 +485,13 @@ with menu4:
                     except:
                         font_def = None
                         
-                    y_s = 10 * scale
+                    y_s = 8 * scale
                     for txt, sz in baris_slip:
                         try:
-                            f_used = ImageFont.truetype("arial.ttf", sz * scale) if font_def else font_def
+                            f_used = ImageFont.truetype("cour.ttf", sz * scale) if font_def else font_def
                         except:
                             f_used = font_def
-                        draw_slip.text((10 * scale, y_s), txt, font=f_used, fill=(0, 0, 0))
+                        draw_slip.text((8 * scale, y_s), txt, font=f_used, fill=(0, 0, 0))
                         y_s += sz * scale
                         
                     buf_s = io.BytesIO()
@@ -499,7 +499,7 @@ with menu4:
                     byte_slip = buf_s.getvalue()
                     
                     st.subheader(f"📄 Slip Gaji: {nama_slip}")
-                    st.image(byte_slip, width=320)
+                    st.image(byte_slip, width=300)
                     st.download_button(f"📥 Unduh Slip - {nama_slip}", data=byte_slip, file_name=f"Slip_{nama_slip}.jpg", mime="image/jpeg", key=f"dl_{nama_slip}")
 
 # ==========================================
