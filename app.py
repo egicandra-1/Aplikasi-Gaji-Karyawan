@@ -135,7 +135,8 @@ with menu1:
                 nama = st.selectbox("Pilih Karyawan", daftar_karyawan)
 
             st.markdown("---")
-            st.markdown("### ⚡ Panel Input Harian")
+            # MENGHILANGKAN IKON RANTAI AGAR SHIFT+TAB HANYA 1X
+            st.markdown("<b><h3 style='margin:0px;'>⚡ Panel Input Harian</h3></b><br>", unsafe_allow_html=True)
             
             col1, col2 = st.columns([2, 1])
             with col1:
@@ -171,7 +172,7 @@ with menu1:
                     st.error("⚠️ Gagal! Mohon pilih pekerjaan dan ketik jumlah yang valid.")
 
 # ==========================================
-# MENU 2: DATABASE & EDIT PEKERJAAN
+# MENU 2: DATABASE & EDIT Pekerjaan
 # ==========================================
 with menu2:
     st.header("Database Riwayat Pekerjaan (Per Hari)")
