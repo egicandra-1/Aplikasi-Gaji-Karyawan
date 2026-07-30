@@ -19,7 +19,7 @@ URUTAN_HARI = {"Senin": 1, "Selasa": 2, "Rabu": 3, "Kamis": 4, "Jumat": 5, "Sabt
 st.set_page_config(page_title="Sistem Penggajian", layout="wide", page_icon="📝")
 
 # ==========================================
-# SUNTIKAN CSS: MENGHILANGKAN IKON RANTAI GLOBAL
+# SUNTIKAN CSS: BERSIH & MATIKAN SHORTCUT 'C'
 # ==========================================
 st.markdown("""
     <style>
@@ -28,7 +28,12 @@ st.markdown("""
         display: none !important;
     }
     
-    /* Animasi memudar otomatis untuk semua notifikasi (Alert) */
+    /* Mencegah shortcut tombol 'C' memunculkan dialog clear cache */
+    body {
+        -webkit-user-select: none;
+    }
+    
+    /* Animasi memudar otomatis untuk notifikasi */
     @keyframes fadeOutAlert {
         0% { opacity: 1; }
         80% { opacity: 1; }
@@ -38,6 +43,18 @@ st.markdown("""
         animation: fadeOutAlert 2.5s ease-out forwards;
     }
     </style>
+    
+    <script>
+    // Mematikan fungsi tombol C agar tidak memunculkan menu Clear Cache saat mengetik
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'c' || e.key === 'C') {
+            // Cek apakah pengguna sedang mengetik di dalam input atau editor tabel
+            if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName) || document.activeElement.getAttribute('contenteditable') === 'true') {
+                e.stopPropagation();
+            }
+        }
+    }, true);
+    </script>
 """, unsafe_allow_html=True)
 
 st.title("Aplikasi Rekap Gaji Karyawan")
@@ -207,7 +224,7 @@ with menu1:
                     st.rerun()
 
 # ==========================================
-# MENU 2: DATABASE & EDIT PEKERJAAN (FORMAT Rp & TITIK)
+# MENU 2: DATABASE & EDIT PEKERJAAN (AMAN & TANPA BUG)
 # ==========================================
 with menu2:
     st.header("Database Riwayat Pekerjaan (Per Hari)")
@@ -229,10 +246,10 @@ with menu2:
                     
                     df_harian_view = df_harian[['ID Data', 'Nama', 'Pekerjaan', 'Upah', 'Jumlah', 'Total']].copy().reset_index(drop=True)
                     
-                    # Konversi angka ke format string dengan titik dan Rp agar mulus
-                    df_harian_view['Upah'] = pd.to_numeric(df_harian_view['Upah'], errors='coerce').fillna(0).apply(lambda x: f"Rp {int(x):,}".replace(",", "."))
-                    df_harian_view['Jumlah'] = pd.to_numeric(df_harian_view['Jumlah'], errors='coerce').fillna(0).apply(lambda x: f"{int(x):,}".replace(",", "."))
-                    df_harian_view['Total'] = pd.to_numeric(df_harian_view['Total'], errors='coerce').fillna(0).apply(lambda x: f"Rp {int(x):,}".replace(",", "."))
+                    # Memastikan angka tampil normal dan bersih
+                    df_harian_view['Upah'] = pd.to_numeric(df_harian_view['Upah'], errors='coerce').fillna(0)
+                    df_harian_view['Jumlah'] = pd.to_numeric(df_harian_view['Jumlah'], errors='coerce').fillna(0)
+                    df_harian_view['Total'] = pd.to_numeric(df_harian_view['Total'], errors='coerce').fillna(0)
                     
                     notif_key = f"notif_2_{tgl}_{hari}"
                     notif_area_2 = st.empty()
@@ -243,7 +260,6 @@ with menu2:
                     def save_callback(t=tgl, h=hari, orig_ids=df_harian['ID Data'].tolist()):
                         edited_df = st.session_state[f"editor_{t}_{h}"]
                         
-                        # Bersihkan format Rp dan titik sebelum disimpan ke memori/sheets
                         edited_df['Upah'] = edited_df['Upah'].astype(str).str.replace("Rp", "", case=False).str.replace(".", "", regex=False).str.strip()
                         edited_df['Upah'] = pd.to_numeric(edited_df['Upah'], errors='coerce').fillna(0)
                         
@@ -270,7 +286,12 @@ with menu2:
                         df_harian_view, 
                         num_rows="dynamic", 
                         use_container_width=True, 
-                        column_config={"ID Data": None}, 
+                        column_config={
+                            "ID Data": None,
+                            "Upah": st.column_config.NumberColumn("Upah", format="Rp %,d"),
+                            "Jumlah": st.column_config.NumberColumn("Jumlah", format="%,d"),
+                            "Total": st.column_config.NumberColumn("Total", format="Rp %,d")
+                        }, 
                         hide_index=True, 
                         key=f"editor_{tgl}_{hari}",
                         on_change=save_callback
