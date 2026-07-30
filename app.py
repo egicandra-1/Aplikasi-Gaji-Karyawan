@@ -232,15 +232,15 @@ with menu2:
     
     if len(df_gaji) > 0:
         df_gaji['Date_Obj'] = pd.to_datetime(df_gaji['Tanggal']).dt.date
-        min_tgl = df_gaji['Date_Obj'].min()
         max_tgl = df_gaji['Date_Obj'].max()
+        default_start = df_gaji['Date_Obj'].min()
         
         col_f1, col_f2 = st.columns([2, 1])
         with col_f1:
+            # Tanpa min_value agar bisa leluasa memilih tanggal kapan saja ke belakang
             rentang_tanggal = st.date_input(
                 "Pilih Periode Tanggal",
-                value=(min_tgl, max_tgl),
-                min_value=min_tgl,
+                value=(default_start, max_tgl),
                 max_value=datetime.today().date(),
                 format="DD/MM/YYYY"
             )
@@ -486,7 +486,6 @@ with menu5:
     df_kasbon = st.session_state.df_kasbon.copy()
     df_lain_all = st.session_state.df_pengeluaran.copy()
     
-    # KALENDER RENTANG MENYATU UNTUK LAPORAN RESUME KAS
     rentang_res = st.date_input(
         "Pilih Periode Resume Kas",
         value=(datetime.today().date(), datetime.today().date()),
