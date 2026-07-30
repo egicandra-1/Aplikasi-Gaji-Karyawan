@@ -14,7 +14,7 @@ HARI_INDO = {
     "Thursday": "Kamis", "Friday": "Jumat", "Saturday": "Sabtu", "Sunday": "Minggu"
 }
 
-URUTAN_HARI = {"Senin": 1, "Selasa": 2, "Rabu": 3, "Kamis": 4, "Jumat": 5, "Sabtu": 6, "Ninggu": 7}
+URUTAN_HARI = {"Senin": 1, "Selasa": 2, "Rabu": 3, "Kamis": 4, "Jumat": 5, "Sabtu": 6, "Minggu": 7}
 
 st.set_page_config(page_title="Sistem Penggajian", layout="wide", page_icon="📝")
 
@@ -402,7 +402,7 @@ with menu3:
                     st.rerun()
 
 # ==========================================
-# MENU 4: CETAK SLIP GAJI (PERSIS 100% SEPERTI CONTOH GAMBAR)
+# MENU 4: CETAK SLIP GAJI (PERSIS 100% SEPERTI CONTOH GAMBAR BARU)
 # ==========================================
 with menu4:
     st.header("Cetak & Unduh Slip Gaji")
@@ -435,41 +435,42 @@ with menu4:
                 
                 if len(df_filter_gaji) > 0 or len(df_filter_kb) > 0:
                     baris_slip = [
-                        ("SLIP GAJI KARYAWAN", 12, "center"),
+                        ("SLIP GAJI", 13, "center"),
                         ("=================================", 8, "left"),
-                        (f"Nama    : {nama_slip}", 10, "left"),
-                        (f"Periode : {tgl_mulai_slip.strftime('%d/%m/%Y')} - {tgl_selesai_slip.strftime('%d/%m/%Y')}", 10, "left"),
+                        (f"Nama    : {nama_slip}", 11, "left"),
+                        (f"Periode : {tgl_mulai_slip.strftime('%d/%m/%Y')} - {tgl_selesai_slip.strftime('%d/%m/%Y')}", 11, "left"),
                         ("=================================", 8, "left"),
-                        ("", 4, "left")
+                        ("", 3, "left")
                     ]
                     
                     total_upah = 0
                     for tgl, data_harian in df_filter_gaji.groupby('Tanggal'):
-                        baris_slip.append((f"Tgl: {tgl.strftime('%d/%m/%Y')}", 10, "left"))
+                        hari_indo = HARI_INDO.get(tgl.strftime("%A"), "")
+                        baris_slip.append((f"Hari/Tgl: {hari_indo}, {tgl.strftime('%d/%m/%Y')}", 11, "left"))
                         sub = 0
                         for _, row in data_harian.iterrows():
                             j, u, t = float(row['Jumlah']), float(row['Upah']), float(row['Total'])
-                            baris_slip.append((f"- {row['Pekerjaan']}", 10, "left"))
-                            baris_slip.append((f"    {j:,.0f} pcs x Rp{u:,.0f} = Rp{t:,.0f}".replace(",", "."), 10, "left"))
+                            baris_slip.append((f"- {row['Pekerjaan']}", 11, "left"))
+                            baris_slip.append((f"    {j:,.0f} pcs x Rp{u:,.0f} = Rp{t:,.0f}".replace(",", "."), 11, "left"))
                             sub += t
-                        baris_slip.append((f"Sub-total: Rp{sub:,.0f}".replace(",", "."), 10, "left"))
-                        baris_slip.append(("", 4, "left"))
+                        baris_slip.append((f"Sub-total: Rp{sub:,.0f}".replace(",", "."), 11, "left"))
+                        baris_slip.append(("", 3, "left"))
                         total_upah += sub
                         
                     tot_tambah, tot_kurang = 0, 0
                     if len(df_filter_kb) > 0:
-                        baris_slip.append(("--- CATATAN TAMBAHAN ---", 10, "left"))
+                        baris_slip.append(("--- CATATAN TAMBAHAN ---", 11, "left"))
                         for _, rkb in df_filter_kb.iterrows():
                             nom = float(rkb['Nominal'])
                             sign = "+" if rkb['Tipe'] == "Penambahan" else "-"
-                            baris_slip.append((f" {sign} {rkb['Keterangan']} (Rp {nom:,.0f})".replace(",", "."), 10, "left"))
+                            baris_slip.append((f" {sign} {rkb['Keterangan']} (Rp {nom:,.0f})".replace(",", "."), 11, "left"))
                             if rkb['Tipe'] == "Penambahan": tot_tambah += nom
                             else: tot_kurang += nom
-                        baris_slip.append(("", 4, "left"))
+                        baris_slip.append(("", 3, "left"))
                         
                     total_bersih = total_upah + tot_tambah - tot_kurang
                     baris_slip.append(("=================================", 8, "left"))
-                    baris_slip.append((f"TOTAL GAJI : Rp {total_bersih:,.0f}".replace(",", "."), 11, "left"))
+                    baris_slip.append((f"TOTAL GAJI DITERIMA: Rp {total_bersih:,.0f}".replace(",", "."), 11, "left"))
                     baris_slip.append(("=================================", 8, "left"))
                     
                     scale = 4
@@ -477,7 +478,7 @@ with menu4:
                     dummy_draw = ImageDraw.Draw(dummy_img)
                     
                     max_w = 0
-                    total_h = 4 * scale
+                    total_h = 2 * scale
                     for txt, sz, align in baris_slip:
                         try:
                             f_sz = ImageFont.truetype("cour.ttf", sz * scale)
@@ -498,12 +499,12 @@ with menu4:
                         total_h += sz * scale
                         
                     canvas_w = int(max_w) + (20 * scale)
-                    canvas_h = int(total_h) + (4 * scale)
+                    canvas_h = int(total_h) + (2 * scale)
                     
                     img_slip = Image.new('RGB', (canvas_w, canvas_h), color=(255, 255, 255))
                     draw_slip = ImageDraw.Draw(img_slip)
                     
-                    y_s = 4 * scale
+                    y_s = 2 * scale
                     for txt, sz, align in baris_slip:
                         try:
                             f_sz = ImageFont.truetype("cour.ttf", sz * scale)
