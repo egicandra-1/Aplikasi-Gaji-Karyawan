@@ -402,7 +402,7 @@ with menu3:
                     st.rerun()
 
 # ==========================================
-# MENU 4: CETAK SLIP GAJI (JUDUL TENGAH, JARAK BARIS SANGAT RAPAT)
+# MENU 4: CETAK SLIP GAJI (POSISI SLIP GAJI TEPAT, JARAK SANGAT RAPAT)
 # ==========================================
 with menu4:
     st.header("Cetak & Unduh Slip Gaji")
@@ -436,11 +436,11 @@ with menu4:
                 if len(df_filter_gaji) > 0 or len(df_filter_kb) > 0:
                     baris_slip = [
                         ("SLIP GAJI", 13, "center"),
-                        ("=================================", 7, "left"),
+                        ("=================================", 6, "left"),
                         (f"Nama    : {nama_slip}", 10, "left"),
                         (f"Periode : {tgl_mulai_slip.strftime('%d/%m/%Y')} - {tgl_selesai_slip.strftime('%d/%m/%Y')}", 10, "left"),
-                        ("=================================", 7, "left"),
-                        ("", 2, "left")
+                        ("=================================", 6, "left"),
+                        ("", 1, "left")
                     ]
                     
                     total_upah = 0
@@ -468,9 +468,9 @@ with menu4:
                         baris_slip.append(("", 1, "left"))
                         
                     total_bersih = total_upah + tot_tambah - tot_kurang
-                    baris_slip.append(("=================================", 7, "left"))
+                    baris_slip.append(("=================================", 6, "left"))
                     baris_slip.append((f"TOTAL GAJI : Rp {total_bersih:,.0f}".replace(",", "."), 11, "left"))
-                    baris_slip.append(("=================================", 7, "left"))
+                    baris_slip.append(("=================================", 6, "left"))
                     
                     scale = 4
                     dummy_img = Image.new('RGB', (100, 100))
