@@ -568,7 +568,7 @@ with menu4:
                     st.download_button(f"📥 Unduh Slip - {nama_slip}", data=byte_slip, file_name=f"Slip_{nama_slip}.jpg", mime="image/jpeg", key=f"dl_{nama_slip}")
 
 # ==========================================
-# MENU 5: LAPORAN RESUME KAS (VERTIKAL BERSIH & MUDAH DIBACA ATASAN)
+# MENU 5: LAPORAN RESUME KAS (TABEL TERPISAH PER SUB KE BAWAH)
 # ==========================================
 with menu5:
     st.header("📊 Laporan Resume Kas")
@@ -674,52 +674,65 @@ with menu5:
         total_pengeluaran_keseluruhan = total_gaji_semua + total_pengeluaran_lain
         sisa_uang = tarik_uang - total_pengeluaran_keseluruhan
         
-        # --- MENYUSUN LAPORAN RESUME VERTIKAL YANG MUDAH DIBACA ---
+        # --- MENYUSUN LAPORAN RESUME DENGAN TABEL TERPISAH KE BAWAH ---
         baris_resume = [
             ("RESUME LAPORAN KAS", 12, "center"),
             ("=================================", 6, "left"),
             (f"Periode : {tgl_mulai_res.strftime('%d/%m/%Y')} - {tgl_selesai_res.strftime('%d/%m/%Y')}", 9, "left"),
             ("=================================", 6, "left"),
             ("", 9, "left"),
-            ("A. PENGELUARAN (GAJI KARYAWAN)", 9, "left"),
-            ("---------------------------------", 6, "left")
+            # TABEL 1: GAJI KARYAWAN
+            ("+--------------------------------+", 9, "left"),
+            ("| 1. RINCIAN GAJI KARYAWAN       |", 9, "left"),
+            ("+--------------------------------+", 9, "left")
         ]
         
         for k in daftar_karyawan:
             val = rekap_gaji.get(k, 0)
             val_fmt = f"Rp{val:,.0f}".replace(",", ".")
-            baris_resume.append((f"- {k:<12} : {val_fmt}", 9, "left"))
+            baris_resume.append((f"  - {k:<12} : {val_fmt}", 9, "left"))
             
         tot_gaji_fmt = f"Rp{total_gaji_semua:,.0f}".replace(",", ".")
-        baris_resume.append((f"TOTAL GAJI     : {tot_gaji_fmt}", 9, "left"))
+        baris_resume.append(("----------------------------------", 6, "left"))
+        baris_resume.append((f"  TOTAL GAJI   : {tot_gaji_fmt}", 9, "left"))
         baris_resume.append(("", 9, "left"))
         
-        baris_resume.append(("B. PENGELUARAN LAINNYA", 9, "left"))
-        baris_resume.append(("---------------------------------", 6, "left"))
+        # TABEL 2: PENGELUARAN LAINNYA
+        baris_resume.extend([
+            ("+--------------------------------+", 9, "left"),
+            ("| 2. PENGELUARAN LAINNYA         |", 9, "left"),
+            ("+--------------------------------+", 9, "left")
+        ])
+        
         if len(df_lain_all) > 0:
             for _, row_l in df_lain_all.iterrows():
                 ket_l = str(row_l['Keterangan'])
                 nom_l = float(row_l['Nominal']) if pd.notnull(row_l['Nominal']) else 0
                 nom_l_fmt = f"Rp{nom_l:,.0f}".replace(",", ".")
-                baris_resume.append((f"- {ket_l:<12} : {nom_l_fmt}", 9, "left"))
+                baris_resume.append((f"  - {ket_l:<12} : {nom_l_fmt}", 9, "left"))
         else:
-            baris_resume.append(("(Tidak ada pengeluaran lain)", 9, "left"))
+            baris_resume.append(("  (Tidak ada pengeluaran lain)", 9, "left"))
             
         tot_lain_fmt = f"Rp{total_pengeluaran_lain:,.0f}".replace(",", ".")
-        baris_resume.append((f"TOTAL LAINNYA  : {tot_lain_fmt}", 9, "left"))
+        baris_resume.append(("----------------------------------", 6, "left"))
+        baris_resume.append((f"  TOTAL LAINNYA: {tot_lain_fmt}", 9, "left"))
         baris_resume.append(("", 9, "left"))
         
-        baris_resume.append(("C. RINGKASAN KAS & SALDO", 9, "left"))
-        baris_resume.append(("=================================", 6, "left"))
+        # TABEL 3: RINGKASAN KAS & SALDO
         tarik_fmt = f"Rp{tarik_uang:,.0f}".replace(",", ".")
         total_keluar_fmt = f"Rp{total_pengeluaran_keseluruhan:,.0f}".replace(",", ".")
         sisa_fmt = f"Rp{sisa_uang:,.0f}".replace(",", ".")
         
-        baris_resume.append((f"Tarikan Uang           : {tarik_fmt}", 9, "left"))
-        baris_resume.append((f"Pengeluaran Keseluruhan: {total_keluar_fmt}", 9, "left"))
-        baris_resume.append(("=================================", 6, "left"))
-        baris_resume.append((f"SISA SALDO KAS         : {sisa_fmt}", 9, "left"))
-        baris_resume.append(("=================================", 6, "left"))
+        baris_resume.extend([
+            ("+--------------------------------+", 9, "left"),
+            ("| 3. RINGKASAN SALDO KAS         |", 9, "left"),
+            ("+--------------------------------+", 9, "left"),
+            (f"  Tarikan Uang        : {tarik_fmt}", 9, "left"),
+            (f"  Total Pengeluaran   : {total_keluar_fmt}", 9, "left"),
+            ("=================================", 6, "left"),
+            (f"  SISA SALDO KAS      : {sisa_fmt}", 9, "left"),
+            ("=================================", 6, "left")
+        ])
         
         scale = 4
         try:
@@ -768,7 +781,7 @@ with menu5:
         except:
             sep_w = max_w
             
-        canvas_w = max(int(max_w), int(sep_w)) + (20 * scale)
+        canvas_w = max(int(max_w), int(sep_w)) + (24 * scale)
         canvas_h = sum(line_heights) + (6 * scale)
         
         img_resume = Image.new('RGB', (canvas_w, canvas_h), color=(255, 255, 255))
@@ -793,7 +806,7 @@ with menu5:
                         w_line = len(txt) * sz * scale * 0.6
                     x_pos = (canvas_w - w_line) / 2
                 else:
-                    x_pos = 6 * scale
+                    x_pos = 8 * scale
                     
                 draw_resume.text((x_pos, y_s), txt, font=f_sz, fill=(0, 0, 0))
                 
