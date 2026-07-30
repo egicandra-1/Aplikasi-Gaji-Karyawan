@@ -402,7 +402,7 @@ with menu3:
                     st.rerun()
 
 # ==========================================
-# MENU 4: CETAK SLIP GAJI (FIT KONTEN SEMPURNA & SUPER TAJAM HD)
+# MENU 4: CETAK SLIP GAJI (FIT KONTEN RAPAT, TANPA LEBAR BERLEBIH)
 # ==========================================
 with menu4:
     st.header("Cetak & Unduh Slip Gaji")
@@ -472,9 +472,9 @@ with menu4:
                     baris_slip.append((f"TOTAL GAJI : Rp {total_bersih:,.0f}".replace(",", "."), 13))
                     baris_slip.append(("=================================", 10))
                     
-                    # Kanvas pas rapat fit konten dan super tajam HD
+                    # Kanvas super rapat fit konten dengan resolusi HD 4x, TANPA parameter width di st.image agar tampil natural
                     scale = 4
-                    base_w = 270
+                    base_w = 260
                     total_h = sum([sz for _, sz in baris_slip]) + 8
                     
                     img_slip = Image.new('RGB', (base_w * scale, total_h * scale), color=(255, 255, 255))
@@ -491,7 +491,7 @@ with menu4:
                             f_used = ImageFont.truetype("arial.ttf", sz * scale) if font_def else font_def
                         except:
                             f_used = font_def
-                        draw_slip.text((8 * scale, y_s), txt, font=f_used, fill=(0, 0, 0))
+                        draw_slip.text((6 * scale, y_s), txt, font=f_used, fill=(0, 0, 0))
                         y_s += sz * scale
                         
                     buf_s = io.BytesIO()
@@ -499,7 +499,7 @@ with menu4:
                     byte_slip = buf_s.getvalue()
                     
                     st.subheader(f"📄 Slip Gaji: {nama_slip}")
-                    st.image(byte_slip, width=base_w)
+                    st.image(byte_slip) # Tanpa width agar fit konten rapi natural tanpa ruang putih
                     st.download_button(f"📥 Unduh Slip - {nama_slip}", data=byte_slip, file_name=f"Slip_{nama_slip}.jpg", mime="image/jpeg", key=f"dl_{nama_slip}")
 
 # ==========================================
