@@ -391,7 +391,6 @@ with menu3:
                         
                         st.session_state.notif_3 = "✅ Berhasil menyimpan data!"
                         st.session_state.notif_3_type = "success"
-                        st.reron = True
                         st.rerun()
                     except Exception as e:
                         st.session_state.notif_3 = f"⚠️ Gagal: {e}"
@@ -403,7 +402,7 @@ with menu3:
                     st.rerun()
 
 # ==========================================
-# MENU 4: CETAK SLIP GAJI (SLIP GAJI DI DALAM, CENTER, FONT 13)
+# MENU 4: CETAK SLIP GAJI (SLIP GAJI DI DALAM, FONT BESAR 15, CENTER PRESISI)
 # ==========================================
 with menu4:
     st.header("Cetak & Unduh Slip Gaji")
@@ -437,7 +436,7 @@ with menu4:
                 if len(df_filter_gaji) > 0 or len(df_filter_kb) > 0:
                     baris_slip = [
                         ("=================================", 6, "left"),
-                        ("SLIP GAJI", 13, "center"),
+                        ("SLIP GAJI", 15, "center"),
                         ("=================================", 6, "left"),
                         (f"Nama    : {nama_slip}", 9, "left"),
                         (f"Periode : {tgl_mulai_slip.strftime('%d/%m/%Y')} - {tgl_selesai_slip.strftime('%d/%m/%Y')}", 9, "left"),
