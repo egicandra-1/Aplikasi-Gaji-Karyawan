@@ -135,8 +135,9 @@ menu1, menu2, menu3, menu4, menu5, menu6 = st.tabs([
 with menu1:
     st.header("Input Pekerjaan Harian")
     
+    # Menampilkan Notifikasi Toast Pop-up
     if "notif_sukses_harian" in st.session_state:
-        st.success(st.session_state.notif_sukses_harian)
+        st.toast(st.session_state.notif_sukses_harian, icon="✅")
         del st.session_state.notif_sukses_harian
 
     # Memastikan nilai default memori tidak melebihi tanggal hari ini
@@ -192,12 +193,12 @@ with menu1:
                         st.session_state.last_karyawan_harian = nama
                         
                         jml_fmt = f"{jumlah:,.0f}".replace(",", ".")
-                        st.session_state.notif_sukses_harian = f"✅ Tersimpan Kilat! {jml_fmt} {pekerjaan} untuk {nama}."
+                        st.session_state.notif_sukses_harian = f"Tersimpan Kilat! {jml_fmt} {pekerjaan} untuk {nama}."
                         st.rerun() 
                     except Exception as e:
-                        st.error(f"⚠️ Gagal simpan: {e}")
+                        st.toast(f"Gagal simpan: {e}", icon="⚠️")
                 else:
-                    st.error("⚠️ Gagal! Mohon pilih pekerjaan dan ketik jumlah yang valid.")
+                    st.toast("Gagal! Mohon pilih pekerjaan dan ketik jumlah yang valid.", icon="⚠️")
 
 # ==========================================
 # MENU 2: DATABASE & EDIT PEKERJAAN
@@ -248,7 +249,7 @@ with menu2:
                             ws["gaji"].clear()
                             ws["gaji"].update([df_final.columns.values.tolist()] + df_final.fillna("").values.tolist())
                             
-                            st.success("Perubahan Berhasil Disimpan!")
+                            st.toast("Perubahan Berhasil Disimpan!", icon="✅")
                             time.sleep(0.5)
                             st.rerun()
         else:
@@ -262,8 +263,9 @@ with menu2:
 with menu3:
     st.header("Pencatatan Penambahan & Pengurangan")
     
+    # Notifikasi Toast Pop-up
     if "notif_sukses_kb" in st.session_state:
-        st.success(st.session_state.notif_sukses_kb)
+        st.toast(st.session_state.notif_sukses_kb, icon="✅")
         del st.session_state.notif_sukses_kb
 
     today_date_kb = datetime.today().date()
@@ -277,6 +279,7 @@ with menu3:
         with st.form("form_kasbon", clear_on_submit=True):
             col_kb1, col_kb2, col_kb3 = st.columns(3)
             with col_kb1:
+                # Menggunakan parameter max_value=datetime.today()
                 tgl_kb = st.date_input("Tanggal Transaksi", st.session_state.last_date_kb, max_value=datetime.today(), format="DD/MM/YYYY")
             with col_kb2:
                 idx_kb = daftar_karyawan.index(st.session_state.last_karyawan_kb) if st.session_state.last_karyawan_kb in daftar_karyawan else 0
@@ -306,12 +309,12 @@ with menu3:
                         st.session_state.last_date_kb = tgl_kb
                         st.session_state.last_karyawan_kb = nama_kb
                         
-                        st.session_state.notif_sukses_kb = "✅ Berhasil menyimpan data!"
+                        st.session_state.notif_sukses_kb = "Berhasil menyimpan data!"
                         st.rerun()
                     except Exception as e:
-                        st.error(f"Gagal: {e}")
+                        st.toast(f"Gagal: {e}", icon="⚠️")
                 else:
-                    st.error("⚠️ Mohon isi keterangan dan nominal dengan benar.")
+                    st.toast("Mohon isi keterangan dan nominal dengan benar.", icon="⚠️")
 
 # ==========================================
 # MENU 4: CETAK SLIP GAJI
@@ -431,11 +434,11 @@ with menu5:
                     st.session_state.df_pengeluaran = pd.concat([st.session_state.df_pengeluaran, baris_lain], ignore_index=True)
                     
                     ws["pengeluaran"].append_row([id_lain, ket_lain, nominal_lain])
-                    st.success(f"Berhasil menambahkan '{ket_lain}'!")
+                    st.toast(f"Berhasil menambahkan '{ket_lain}'!", icon="✅")
                 except Exception as e:
-                    st.warning(f"⚠️ Gagal menyimpan: {e}")
+                    st.toast(f"Gagal menyimpan: {e}", icon="⚠️")
             else:
-                st.warning("⚠️ Mohon isi dengan benar.")
+                st.toast("Mohon isi dengan benar.", icon="⚠️")
 
     if st.button("🖼️ Generate Gambar Resume", type="primary"):
         tarik_uang = int(tarik_uang_str.strip()) if tarik_uang_str.strip().isdigit() else 0
@@ -550,7 +553,7 @@ with menu6:
                 ws["karyawan"].clear()
                 ws["karyawan"].update([edited_karyawan.columns.values.tolist()] + edited_karyawan.fillna("").values.tolist())
                 
-                st.success("Berhasil Disimpan!")
+                st.toast("Berhasil Disimpan!", icon="✅")
                 time.sleep(0.5)
                 st.rerun()
 
@@ -573,6 +576,6 @@ with menu6:
                 ws["pekerjaan"].clear()
                 ws["pekerjaan"].update([edited_pekerjaan.columns.values.tolist()] + edited_pekerjaan.fillna("").values.tolist())
                 
-                st.success("Berhasil Disimpan!")
+                st.toast("Berhasil Disimpan!", icon="✅")
                 time.sleep(0.5)
                 st.rerun()
