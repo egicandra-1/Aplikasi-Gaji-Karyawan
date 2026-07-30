@@ -28,7 +28,7 @@ st.markdown("""
         display: none !important;
     }
     
-    /* Animasi memudar otomatis untuk notifikasi */
+    /* Animasi memudar otomatis untuk notifikasi menu lain */
     @keyframes fadeOutAlert {
         0% { opacity: 1; }
         80% { opacity: 1; }
@@ -516,7 +516,7 @@ with menu5:
     if tarik_uang_str.strip():
         if tarik_uang_str.strip().isdigit():
             nominal_format = f"Rp {int(tarik_uang_str.strip()):,}".replace(",", ".")
-            st.success(f"✅ Nominal penarikan tunai saat ini tercatat sebesar **{nominal_format}**")
+            st.info(f"📌 Nominal terinput: **{nominal_format}**")
         else:
             st.error("⚠️ Mohon ketik nominal penarikan berupa angka yang valid.")
     
