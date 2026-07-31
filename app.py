@@ -77,11 +77,6 @@ st.markdown("""
     div[data-testid="stToolbar"] {display: none !important;}
     div[data-testid="stDecoration"] {display: none !important;}
     
-    @keyframes fadeOutAlert {
-        0% { opacity: 1; }
-        80% { opacity: 1; }
-        100% { opacity: 0; visibility: hidden; }
-    }
     div[data-testid="stVerticalBlock"] div[data-testid="stAlert"] { animation: none !important; }
     </style>
     <script>
@@ -190,7 +185,7 @@ menu1, menu2, menu3, menu4, menu5, menu6 = st.tabs([
 ])
 
 # ==========================================
-# MENU 1 & 2
+# MENU 1, 2, 3
 # ==========================================
 with menu1:
     st.header("Input Pekerjaan Harian")
@@ -225,6 +220,8 @@ with menu1:
             if "notif_1" in st.session_state:
                 if st.session_state.notif_1_type == "success": notif_area_1.success(st.session_state.notif_1)
                 else: notif_area_1.error(st.session_state.notif_1)
+                time.sleep(1.5)
+                notif_area_1.empty()
                 del st.session_state.notif_1
                 del st.session_state.notif_1_type
                 
@@ -284,11 +281,15 @@ with menu2:
                     df_harian_view['Upah'] = pd.to_numeric(df_harian_view['Upah'], errors='coerce').fillna(0)
                     df_harian_view['Jumlah'] = pd.to_numeric(df_harian_view['Jumlah'], errors='coerce').fillna(0)
                     df_harian_view['Total'] = pd.to_numeric(df_harian_view['Total'], errors='coerce').fillna(0)
+                    
                     notif_key = f"notif_2_{tgl}_{hari}"
                     notif_area_2 = st.empty()
                     if notif_key in st.session_state:
                         notif_area_2.success(st.session_state[notif_key])
+                        time.sleep(1.5)
+                        notif_area_2.empty()
                         del st.session_state[notif_key]
+                        
                     def save_callback(t=tgl, h=hari, orig_ids=df_harian['ID Data'].tolist()):
                         edited_df = st.session_state.get(f"editor_{t}_{h}")
                         if edited_df is None or not isinstance(edited_df, pd.DataFrame) or edited_df.empty:
@@ -319,9 +320,6 @@ with menu2:
         else: st.info(f"Tidak ada riwayat pekerjaan pada rentang tanggal tersebut.")
     else: st.info("Belum ada data pekerjaan yang tersimpan.")
 
-# ==========================================
-# MENU 3: PENAMBAHAN & PENGURANGAN (FORM + DATABASE EDITOR)
-# ==========================================
 with menu3:
     st.header("Pencatatan Penambahan & Pengurangan")
     today_date_kb = datetime.today().date()
@@ -329,7 +327,6 @@ with menu3:
     if "last_karyawan_kb" not in st.session_state: st.session_state.last_karyawan_kb = daftar_karyawan[0] if daftar_karyawan else ""
 
     if len(daftar_karyawan) > 0:
-        # BAGIAN 1: FORM INPUT
         with st.form("form_kasbon", clear_on_submit=True):
             col_kb1, col_kb2, col_kb3 = st.columns(3)
             with col_kb1: tgl_kb = st.date_input("Tanggal Transaksi", st.session_state.last_date_kb, max_value=datetime.today(), format="DD/MM/YYYY")
@@ -346,6 +343,8 @@ with menu3:
             if "notif_3" in st.session_state:
                 if st.session_state.notif_3_type == "success": notif_area_3.success(st.session_state.notif_3)
                 else: notif_area_3.error(st.session_state.notif_3)
+                time.sleep(1.5)
+                notif_area_3.empty()
                 del st.session_state.notif_3
                 del st.session_state.notif_3_type
                 
@@ -371,10 +370,8 @@ with menu3:
                     st.session_state.notif_3 = "⚠️ Mohon isi keterangan dan nominal dengan benar."
                     st.session_state.notif_3_type = "error"
                     st.rerun()
-
+                    
         st.markdown("---")
-        
-        # BAGIAN 2: DATABASE & EDITOR
         st.subheader("Database Riwayat Penambahan & Pengurangan")
         st.caption("💡 Edit atau Hapus langsung di tabel lalu tekan **Enter**.")
         
@@ -411,6 +408,8 @@ with menu3:
                         notif_area_3_db = st.empty()
                         if notif_key_kb in st.session_state:
                             notif_area_3_db.success(st.session_state[notif_key_kb])
+                            time.sleep(1.5)
+                            notif_area_3_db.empty()
                             del st.session_state[notif_key_kb]
                             
                         def save_kb_callback(t=tgl_val, orig_ids=df_harian_kb['ID Kasbon'].tolist()):
@@ -495,7 +494,7 @@ with menu4:
                 df_filter_kb = df_kasbon[(df_kasbon['Nama'] == nama_slip) & (pd.to_datetime(df_kasbon['Tanggal']).dt.date >= tgl_mulai_slip) & (pd.to_datetime(df_kasbon['Tanggal']).dt.date <= tgl_selesai_slip)] if len(df_kasbon) > 0 else pd.DataFrame()
                 
                 if len(df_filter_gaji) > 0 or len(df_filter_kb) > 0:
-                    scale = 4
+                    scale = 4 
                     f_reg = get_font(12 * scale, "mono") 
                     f_bold = get_font(14 * scale, "mono")
                     f_title = get_font(18 * scale, "mono")
@@ -614,7 +613,7 @@ with menu4:
                 st.info("Tidak ada data pekerjaan atau kasbon untuk karyawan tersebut pada periode yang dipilih.")
 
 # ==========================================
-# MENU 5: LAPORAN RESUME KAS
+# MENU 5: LAPORAN RESUME KAS (DENGAN FORM + DATABASE)
 # ==========================================
 with menu5:
     st.header("📊 Laporan Resume Kas")
@@ -633,20 +632,26 @@ with menu5:
         else: st.error("⚠️ Mohon ketik nominal penarikan berupa angka yang valid.")
     else: st.info("📌 Nominal terinput: **Rp 0**")
     
+    # --- FORM INPUT PENGELUARAN LAIN ---
     st.markdown("---")
     st.subheader("🛒 Pencatatan Pengeluaran Lain-Lain")
+    
+    notif_area_5 = st.empty()
+    if "notif_5_msg" in st.session_state:
+        if st.session_state["notif_5_type"] == "success":
+            notif_area_5.success(st.session_state["notif_5_msg"])
+        else:
+            notif_area_5.error(st.session_state["notif_5_msg"])
+        time.sleep(1.5)
+        notif_area_5.empty()
+        del st.session_state["notif_5_msg"]
+        del st.session_state["notif_5_type"]
+
     with st.form("form_pengeluaran_lain", clear_on_submit=True):
         col_l1, col_l2 = st.columns([2, 1])
         with col_l1: ket_lain = st.text_input("Keterangan Pengeluaran")
         with col_l2: nominal_lain_str = st.text_input("Nominal (Rp)", placeholder="Ketik nominal...")
             
-        notif_area_5 = st.empty()
-        if "notif_5" in st.session_state:
-            if st.session_state.notif_5_type == "success": notif_area_5.success(st.session_state.notif_5)
-            else: notif_area_5.error(st.session_state.notif_5)
-            del st.session_state.notif_5
-            del st.session_state.notif_5_type
-
         submitted_lain = st.form_submit_button("➕ Tambah Pengeluaran Lain", type="primary", use_container_width=True)
         if submitted_lain:
             nominal_lain = int(nominal_lain_str.strip()) if nominal_lain_str.strip().isdigit() else 0
@@ -656,19 +661,77 @@ with menu5:
                     baris_lain = pd.DataFrame([{"ID Lain": id_lain, "Keterangan": ket_lain, "Nominal": nominal_lain}])
                     st.session_state.df_pengeluaran = pd.concat([st.session_state.df_pengeluaran, baris_lain], ignore_index=True)
                     ws["pengeluaran"].append_row([id_lain, ket_lain, nominal_lain])
-                    st.session_state.notif_5 = f"✅ Berhasil menambahkan '{ket_lain}'!"
-                    st.session_state.notif_5_type = "success"
+                    
+                    st.session_state["notif_5_msg"] = f"✅ Berhasil menambahkan '{ket_lain}'!"
+                    st.session_state["notif_5_type"] = "success"
                     st.rerun()
                 except Exception as e:
-                    st.session_state.notif_5 = f"⚠️ Gagal menyimpan: {e}"
-                    st.session_state.notif_5_type = "error"
+                    st.session_state["notif_5_msg"] = f"⚠️ Gagal menyimpan: {e}"
+                    st.session_state["notif_5_type"] = "error"
                     st.rerun()
             else:
-                st.session_state.notif_5 = "⚠️ Mohon isi dengan benar."
-                st.session_state.notif_5_type = "error"
+                st.session_state["notif_5_msg"] = "⚠️ Mohon isi Keterangan dan Nominal dengan benar."
+                st.session_state["notif_5_type"] = "error"
                 st.rerun()
 
+    # --- TABEL DATABASE PENGELUARAN LAIN (AUTO-SAVE) ---
+    st.markdown("##### 📂 Database Pengeluaran Lainnya")
+    st.caption("💡 Edit Keterangan/Nominal atau Hapus (centang kotak paling kiri & Delete) langsung di tabel lalu tekan **Enter**. Otomatis tersimpan ke server.")
+    
+    notif_area_5_db = st.empty()
+    if "notif_5_db" in st.session_state:
+        notif_area_5_db.success(st.session_state["notif_5_db"])
+        time.sleep(1.5)
+        notif_area_5_db.empty()
+        del st.session_state["notif_5_db"]
+
+    def save_pengeluaran_callback():
+        edited_peng = st.session_state.get("editor_pengeluaran")
+        if edited_peng is not None and isinstance(edited_peng, pd.DataFrame):
+            edited_peng = edited_peng[edited_peng['Keterangan'].astype(str).str.strip() != ""]
+            edited_peng['Nominal'] = pd.to_numeric(edited_peng['Nominal'], errors='coerce').fillna(0)
+            
+            if 'ID Lain' in edited_peng.columns:
+                ids = edited_peng['ID Lain'].apply(lambda x: f"LAIN-{int(time.time())}" if pd.isna(x) or str(x).strip() == "" else str(x))
+            else:
+                ids = [f"LAIN-{int(time.time())}-{i}" for i in range(len(edited_peng))]
+                
+            df_final_peng = pd.DataFrame({
+                'ID Lain': ids,
+                'Keterangan': edited_peng['Keterangan'],
+                'Nominal': edited_peng['Nominal']
+            })
+            
+            st.session_state.df_pengeluaran = df_final_peng
+            ws["pengeluaran"].clear()
+            ws["pengeluaran"].update([df_final_peng.columns.values.tolist()] + df_final_peng.fillna("").values.tolist())
+            st.session_state["notif_5_db"] = "✅ Database Pengeluaran Berhasil Diperbarui!"
+
+    df_peng_view = st.session_state.df_pengeluaran.copy()
+    if not df_peng_view.empty:
+        df_peng_view['Nominal'] = pd.to_numeric(df_peng_view['Nominal'], errors='coerce').fillna(0)
+    else:
+        df_peng_view = pd.DataFrame(columns=["ID Lain", "Keterangan", "Nominal"])
+
+    st.data_editor(
+        df_peng_view,
+        num_rows="dynamic",
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "ID Lain": None, # Hide column
+            "Keterangan": st.column_config.TextColumn("Keterangan", required=True),
+            "Nominal": st.column_config.NumberColumn("Nominal (Rp)", format="Rp %,d", required=True)
+        },
+        key="editor_pengeluaran",
+        on_change=save_pengeluaran_callback
+    )
+
+    st.markdown("---")
     if st.button("🖼️ Generate Gambar Resume", type="primary"):
+        # PERBAHARUI DATA DENGAN YANG TERBARU DARI TABEL
+        df_lain_all = st.session_state.df_pengeluaran.copy()
+        
         tarik_uang = int(tarik_uang_str.strip()) if tarik_uang_str.strip().isdigit() else 0
             
         df_gaji['Tanggal'] = pd.to_datetime(df_gaji['Tanggal']).dt.date
@@ -834,6 +897,8 @@ with menu6:
         notif_area_6k = st.empty()
         if "notif_6k" in st.session_state:
             notif_area_6k.success(st.session_state["notif_6k"])
+            time.sleep(1.5)
+            notif_area_6k.empty()
             del st.session_state["notif_6k"]
         def save_karyawan_callback():
             edited_kar = st.session_state.get("editor_karyawan")
@@ -852,6 +917,8 @@ with menu6:
         notif_area_6p = st.empty()
         if "notif_6p" in st.session_state:
             notif_area_6p.success(st.session_state["notif_6p"])
+            time.sleep(1.5)
+            notif_area_6p.empty()
             del st.session_state["notif_6p"]
         def save_pekerjaan_callback():
             edited_pek = st.session_state.get("editor_pekerjaan")
