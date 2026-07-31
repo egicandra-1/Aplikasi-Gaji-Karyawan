@@ -7,8 +7,6 @@ import io
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import json
-import os
-import urllib.request
 
 # --- KAMUS HARI & BULAN BAHASA INDONESIA ---
 HARI_INDO = {
@@ -26,37 +24,46 @@ URUTAN_HARI = {"Senin": 1, "Selasa": 2, "Rabu": 3, "Kamis": 4, "Jumat": 5, "Sabt
 st.set_page_config(page_title="Sistem Penggajian", layout="wide", page_icon="📝")
 
 # ==========================================
-# FUNGSI AUTO-DOWNLOAD FONT (SOLUSI FONT KECIL DI CLOUD)
+# FUNGSI FONT LOKAL ANTI-LOADING (SANGAT CEPAT)
 # ==========================================
-def get_custom_font(font_type="regular", size=20):
-    font_name = "Roboto-Bold.ttf" if font_type == "bold" else "Roboto-Regular.ttf"
-    font_url = f"https://github.com/googlefonts/roboto/raw/main/src/hinted/{font_name}"
-    
-    if not os.path.exists(font_name):
-        try:
-            urllib.request.urlretrieve(font_url, font_name)
-        except:
-            pass # Fallback aman jika gagal download
-    try:
-        return ImageFont.truetype(font_name, size)
-    except:
-        return ImageFont.load_default()
+def get_safe_font(size, font_style="regular"):
+    """
+    Mengambil font langsung dari sistem operasi / server Streamlit Cloud.
+    Tanpa koneksi internet sehingga dijamin tidak akan loading muter-muter.
+    """
+    if font_style == "bold":
+        font_paths = [
+            "arialbd.ttf", "Arial-Bold.ttf", 
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+            "DejaVuSans-Bold.ttf"
+        ]
+    elif font_style == "mono":
+        font_paths = [
+            "cour.ttf", "consola.ttf", 
+            "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
+            "DejaVuSansMono.ttf"
+        ]
+    else:
+        font_paths = [
+            "arial.ttf", "Arial.ttf", 
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+            "DejaVuSans.ttf"
+        ]
 
-def get_mono_font(size=20):
-    font_name = "RobotoMono-Regular.ttf"
-    font_url = "https://github.com/googlefonts/roboto/raw/main/src/hinted/RobotoMono-Regular.ttf"
-    if not os.path.exists(font_name):
+    for fp in font_paths:
         try:
-            urllib.request.urlretrieve(font_url, font_name)
-        except:
-            pass
-    try:
-        return ImageFont.truetype(font_name, size)
-    except:
-        return ImageFont.load_default()
+            return ImageFont.truetype(fp, size)
+        except IOError:
+            continue
+    
+    # Fallback terakhir (jika semua gagal, pakai default bawaan walau kecil)
+    return ImageFont.load_default()
 
 def get_text_dim(draw, text, font):
-    # Kompatibilitas untuk versi Pillow baru & lama
+    """Fungsi aman untuk menghitung dimensi teks pada versi Pillow baru maupun lama."""
     try:
         bbox = draw.textbbox((0, 0), text, font=font)
         return bbox[2] - bbox[0], bbox[3] - bbox[1]
@@ -473,61 +480,64 @@ with menu4:
                 
                 if len(df_filter_gaji) > 0 or len(df_filter_kb) > 0:
                     baris_slip = [
-                        (f"Nama    : {nama_slip}", 12, "left"),
-                        (f"Periode : {tgl_mulai_slip.strftime('%d/%m/%Y')} - {tgl_selesai_slip.strftime('%d/%m/%Y')}", 12, "left"),
-                        ("=================================", 10, "left")
+                        ("=================================", 6, "left"),
+                        ("SLIP GAJI", 15, "center"),
+                        ("=================================", 6, "left"),
+                        (f"Nama    : {nama_slip}", 9, "left"),
+                        (f"Periode : {tgl_mulai_slip.strftime('%d/%m/%Y')} - {tgl_selesai_slip.strftime('%d/%m/%Y')}", 9, "left"),
+                        ("=================================", 6, "left")
                     ]
                     
                     total_upah = 0
                     first_day = True
                     for tgl, data_harian in df_filter_gaji.groupby('Tanggal'):
                         if not first_day:
-                            baris_slip.append(("", 12, "left"))
+                            baris_slip.append(("", 9, "left"))
                         first_day = False
                         
                         hari_indo = HARI_INDO.get(tgl.strftime("%A"), "")
-                        baris_slip.append((f"Hari/Tgl: {hari_indo}, {tgl.strftime('%d/%m/%Y')}", 12, "left"))
+                        baris_slip.append((f"Hari/Tgl: {hari_indo}, {tgl.strftime('%d/%m/%Y')}", 9, "left"))
                         sub = 0
                         for _, row in data_harian.iterrows():
                             j, u, t = float(row['Jumlah']), float(row['Upah']), float(row['Total'])
                             u_fmt = f"Rp{u:,.0f}".replace(",", ".")
                             t_fmt = f"Rp{t:,.0f}".replace(",", ".")
                             j_fmt = f"{j:,.0f}".replace(",", ".")
-                            baris_slip.append((f"- {row['Pekerjaan']}", 12, "left"))
-                            baris_slip.append((f"    {j_fmt} pcs x {u_fmt} = {t_fmt}", 12, "left"))
+                            baris_slip.append((f"- {row['Pekerjaan']}", 9, "left"))
+                            baris_slip.append((f"    {j_fmt} pcs x {u_fmt} = {t_fmt}", 9, "left"))
                             sub += t
                         sub_fmt = f"Rp{sub:,.0f}".replace(",", ".")
-                        baris_slip.append((f"Sub-total: {sub_fmt}", 12, "left"))
+                        baris_slip.append((f"Sub-total: {sub_fmt}", 9, "left"))
                         total_upah += sub
                         
                     tot_tambah, tot_kurang = 0, 0
                     if len(df_filter_kb) > 0:
-                        baris_slip.append(("", 12, "left"))
-                        baris_slip.append(("--- CATATAN TAMBAHAN ---", 12, "left"))
+                        baris_slip.append(("", 9, "left"))
+                        baris_slip.append(("--- CATATAN TAMBAHAN ---", 9, "left"))
                         for _, rkb in df_filter_kb.iterrows():
                             nom = float(rkb['Nominal'])
                             nom_fmt = f"Rp{nom:,.0f}".replace(",", ".")
                             sign = "+" if rkb['Tipe'] == "Penambahan" else "-"
-                            baris_slip.append((f" {sign} {rkb['Keterangan']} ({nom_fmt})", 12, "left"))
+                            baris_slip.append((f" {sign} {rkb['Keterangan']} ({nom_fmt})", 9, "left"))
                             if rkb['Tipe'] == "Penambahan": tot_tambah += nom
                             else: tot_kurang += nom
                         
                     total_bersih = total_upah + tot_tambah - tot_kurang
                     tot_bersih_fmt = f"Rp {total_bersih:,.0f}".replace(",", ".")
-                    baris_slip.append(("", 12, "left"))
-                    baris_slip.append(("=================================", 10, "left"))
-                    baris_slip.append((f"TOTAL GAJI DITERIMA: {tot_bersih_fmt}", 12, "left"))
-                    baris_slip.append(("=================================", 10, "left"))
+                    baris_slip.append(("", 9, "left"))
+                    baris_slip.append(("=================================", 6, "left"))
+                    baris_slip.append((f"TOTAL GAJI DITERIMA: {tot_bersih_fmt}", 9, "left"))
+                    baris_slip.append(("=================================", 6, "left"))
                     
-                    scale = 2
+                    scale = 4
                     dummy_img = Image.new('RGB', (10, 10))
                     dummy_draw = ImageDraw.Draw(dummy_img)
                     
                     max_w = 0
                     line_heights = []
                     for txt, sz, align in baris_slip:
-                        f_sz = get_mono_font(sz * scale)
-                        h_line = int(sz * scale * 0.8) if txt != "" else int(sz * scale * 0.5)
+                        f_sz = get_safe_font(sz * scale, "mono")
+                        h_line = int(sz * scale * 0.65) if txt != "" else int(9 * scale * 0.4)
                         line_heights.append(h_line)
                         if txt == "":
                             w_txt = 0
@@ -537,25 +547,25 @@ with menu4:
                         if w_txt > max_w:
                             max_w = w_txt
                             
-                    f_sep = get_mono_font(10 * scale)
+                    f_sep = get_safe_font(6 * scale, "mono")
                     sw, sh = get_text_dim(dummy_draw, "=================================", f_sep)
                     sep_w = sw
                         
-                    canvas_w = max(int(max_w), int(sep_w)) + (20 * scale)
-                    canvas_h = sum(line_heights) + (10 * scale)
+                    canvas_w = max(int(max_w), int(sep_w)) + (16 * scale)
+                    canvas_h = sum(line_heights) + (4 * scale)
                     
                     img_slip = Image.new('RGB', (canvas_w, canvas_h), color=(255, 255, 255))
                     draw_slip = ImageDraw.Draw(img_slip)
                     
-                    y_s = 5 * scale
+                    y_s = 2 * scale
                     for idx, (txt, sz, align) in enumerate(baris_slip):
                         if txt != "":
-                            f_sz = get_mono_font(sz * scale)
+                            f_sz = get_safe_font(sz * scale, "mono")
                             if align == "center":
                                 tw, th = get_text_dim(draw_slip, txt, f_sz)
                                 x_pos = (canvas_w - tw) / 2
                             else:
-                                x_pos = 10 * scale
+                                x_pos = 4 * scale
                             draw_slip.text((x_pos, y_s), txt, font=f_sz, fill=(0, 0, 0))
                         y_s += line_heights[idx]
                         
@@ -568,7 +578,7 @@ with menu4:
                     st.download_button(f"📥 Unduh Slip - {nama_slip}", data=byte_slip, file_name=f"Slip_{nama_slip}.jpg", mime="image/jpeg", key=f"dl_{nama_slip}")
 
 # ==========================================
-# MENU 5: LAPORAN RESUME KAS (FONT BESAR, FIT CONTENT & TENGAH)
+# MENU 5: LAPORAN RESUME KAS
 # ==========================================
 with menu5:
     st.header("📊 Laporan Resume Kas")
@@ -674,24 +684,24 @@ with menu5:
         total_pengeluaran_keseluruhan = total_gaji_semua + total_pengeluaran_lain
         sisa_uang = tarik_uang - total_pengeluaran_keseluruhan
         
-        # --- LOAD FONT BESAR ANTI-GAGAL ---
+        # --- LOAD FONT BESAR ANTI-GAGAL (TANPA INTERNET) ---
         scale = 2
-        f_title = get_custom_font("bold", 34 * scale)  # Judul super besar
-        f_sub = get_custom_font("regular", 22 * scale) # Periode besar
-        f_bold = get_custom_font("bold", 18 * scale)   # Text tabel tebal
-        f_reg = get_custom_font("regular", 18 * scale) # Text tabel biasa
+        f_title = get_safe_font(34 * scale, "bold")  # Judul super besar
+        f_sub = get_safe_font(22 * scale, "regular") # Periode besar
+        f_bold = get_safe_font(18 * scale, "bold")   # Text tabel tebal
+        f_reg = get_safe_font(18 * scale, "regular") # Text tabel biasa
         
         # --- HITUNG TINGGI ROW BERDASARKAN FONT ACTUAL ---
         dummy_img = Image.new('RGB', (10, 10))
         dummy_draw = ImageDraw.Draw(dummy_img)
         tw_dummy, th_dummy = get_text_dim(dummy_draw, "Hj", f_bold)
-        row_h = int(th_dummy + (16 * scale)) # Beri padding atas bawah 8 pixel
+        row_h = int(th_dummy + (16 * scale)) # Padding atas bawah agar pas
         
         margin = 40 * scale
         table_w = 900 * scale # Lebar tabel
         col1_w = int(table_w * 0.65) # Kolom pertama 65% lebar
         w = table_w + (margin * 2)
-        h = 4000 * scale # Tinggi super aman (akan dipotong otomatis)
+        h = 4000 * scale # Tinggi super aman (akan dipotong di bawah)
         
         img_res = Image.new('RGB', (w, h), color=(255, 255, 255))
         draw = ImageDraw.Draw(img_res)
@@ -713,9 +723,9 @@ with menu5:
         # Fungsi Pembuat Kotak Tabel Presisi & Fit Content
         def draw_table_box(title_text, headers, rows_data, start_y, total_row=None, header_bg=(210, 235, 210)):
             curr_y = start_y
-            text_y_offset = int((row_h - th_dummy) / 2) - int(3 * scale) # Memastikan teks di tengah baris
+            text_y_offset = int((row_h - th_dummy) / 2) - int(3 * scale) # Teks pas di tengah baris
             
-            # Header Utama (Sub Judul Tabel)
+            # Header Utama
             draw.rectangle([margin, curr_y, margin + table_w, curr_y + row_h], fill=header_bg, outline=(0, 0, 0), width=2)
             draw.text((margin + 20 * scale, curr_y + text_y_offset), title_text, fill=(0, 0, 0), font=f_bold)
             curr_y += row_h
@@ -727,7 +737,7 @@ with menu5:
             draw.text((margin + col1_w + 20 * scale, curr_y + text_y_offset), headers[1], fill=(0, 0, 0), font=f_bold)
             curr_y += row_h
             
-            # Isi Baris Data
+            # Isi Data
             for r in rows_data:
                 draw.rectangle([margin, curr_y, margin + table_w, curr_y + row_h], outline=(0, 0, 0), width=2)
                 draw.line([margin + col1_w, curr_y, margin + col1_w, curr_y + row_h], fill=(0, 0, 0), width=2)
@@ -735,7 +745,7 @@ with menu5:
                 draw.text((margin + col1_w + 20 * scale, curr_y + text_y_offset), str(r[1]), fill=(0, 0, 0), font=f_reg)
                 curr_y += row_h
                 
-            # Baris Total (Jika Ada)
+            # Baris Total
             if total_row:
                 draw.rectangle([margin, curr_y, margin + table_w, curr_y + row_h], fill=header_bg, outline=(0, 0, 0), width=2)
                 draw.line([margin + col1_w, curr_y, margin + col1_w, curr_y + row_h], fill=(0, 0, 0), width=2)
@@ -778,9 +788,7 @@ with menu5:
         ]
         y = draw_table_box("3. RINGKASAN SALDO KAS", ("KETERANGAN", "NOMINAL"), ringkasan_rows, y, total_row=("SISA SALDO KAS", sisa_fmt), header_bg=(255, 235, 156))
 
-        # --- FIT CONTENT SEJATI: Potong Gambar Sesuai Tinggi Tabel Terakhir ---
-        # y sekarang menunjuk persis di batas bawah tabel terakhir + jarak 40*scale. 
-        # Kita potong tepat di sini agar tidak ada blank space berlebih.
+        # --- FIT CONTENT SEJATI: Potong Gambar Sesuai Tinggi Aktual ---
         final_height = y 
         img_cropped = img_res.crop((0, 0, w, final_height))
         
