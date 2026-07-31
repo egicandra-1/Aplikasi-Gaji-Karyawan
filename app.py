@@ -356,7 +356,7 @@ with menu2:
 with menu3:
     st.header("Pencatatan Penambahan & Pengurangan")
     today_date_kb = datetime.today().date()
-    if "last_date_kb" not in st.session_state or st.session_state.last_date_kb > today_date_kb: st.session_state.last_date_kb = today_date_kb
+    if "last_date_kb" not in st.session_state or st.session_state.last_date_kb > today_date: st.session_state.last_date_kb = today_date_kb
     if "last_karyawan_kb" not in st.session_state: st.session_state.last_karyawan_kb = daftar_karyawan[0] if daftar_karyawan else ""
 
     if len(daftar_karyawan) > 0:
@@ -415,14 +415,17 @@ with menu3:
             default_start_kb = df_kasbon_db['Date_Obj'].min()
             
             col_f1_kb, col_f2_kb = st.columns([2, 1])
-            with col_f1_kb: rentang_kb = st.date_input("Pilih Periode Transaksi", value=(default_start_kb, max_tgl_kb), max_value=datetime.today().date(), format="DD/MM/YYYY", key="filter_tgl_kb")
-            with col_f2_kb: filter_nama_kb = st.selectbox("🔍 Filter Karyawan:", ["Semua Karyawan"] + daftar_karyawan, key="filter_nama_kb")
+            with col_f1_kb:
+                rentang_kb = st.date_input("Pilih Periode Transaksi", value=(default_start_kb, max_tgl_kb), max_value=datetime.today().date(), format="DD/MM/YYYY", key="filter_tgl_kb")
+            with col_f2_kb:
+                filter_nama_kb = st.selectbox("🔍 Filter Karyawan:", ["Semua Karyawan"] + daftar_karyawan, key="filter_nama_kb")
                 
             if isinstance(rentang_kb, tuple) and len(rentang_kb) == 2: t_start_kb, t_end_kb = rentang_kb
             else: t_start_kb = t_end_kb = rentang_kb[0] if isinstance(rentang_kb, tuple) else rentang_kb
                 
             df_tampil_kb = df_kasbon_db[(df_kasbon_db['Date_Obj'] >= t_start_kb) & (df_kasbon_db['Date_Obj'] <= t_end_kb)].copy()
-            if filter_nama_kb != "Semua Karyawan": df_tampil_kb = df_tampil_kb[df_tampil_kb['Nama'] == filter_nama_kb]
+            if filter_nama_kb != "Semua Karyawan":
+                df_tampil_kb = df_tampil_kb[df_tampil_kb['Nama'] == filter_nama_kb]
                 
             if len(df_tampil_kb) > 0:
                 df_tampil_kb = df_tampil_kb.sort_values(by=["Tanggal", "Nama"]).drop(columns=["Date_Obj"])
@@ -477,9 +480,12 @@ with menu3:
                             ws["kasbon"].update([df_final_kb.columns.values.tolist()] + df_final_kb.fillna("").values.tolist())
                             st.session_state[notif_key_kb] = "✅ Database Kasbon Tersimpan Otomatis!"
                             st.rerun()
-            else: st.info("Tidak ada riwayat transaksi pada rentang tanggal tersebut.")
-        else: st.info("Belum ada data penambahan atau pengurangan yang tersimpan.")
-    else: st.info("Belum ada data karyawan. Silakan isi di Menu 6.")
+            else:
+                st.info("Tidak ada riwayat transaksi pada rentang tanggal tersebut.")
+        else:
+            st.info("Belum ada data penambahan atau pengurangan yang tersimpan.")
+    else:
+        st.info("Belum ada data karyawan. Silakan isi di Menu 6.")
 
 # ==========================================
 # MENU 4: CETAK SLIP GAJI
@@ -903,7 +909,7 @@ with menu5:
         st.download_button("📥 Unduh File JPG", data=byte_resume_img, file_name=f"Resume_Kas_{tgl_mulai_res.strftime('%d%m%Y')}.jpg", mime="image/jpeg")
 
 # ==========================================
-# MENU 6: PENGATURAN
+# MENU 6: PENGATURAN (NON-AUTO SAVE)
 # ==========================================
 with menu6:
     st.header("Pengaturan Master Data")
@@ -911,7 +917,7 @@ with menu6:
     
     with col_karyawan:
         st.subheader("👥 Daftar Karyawan")
-        st.caption("💡 Tambah/edit nama di tabel, lalu tekan **Enter**. Atau klik tombol **Simpan**.")
+        st.caption("💡 Tambah/edit nama di tabel, lalu klik tombol **Simpan** di bawah.")
         
         notif_area_6k = st.empty()
         if "notif_6k" in st.session_state:
@@ -930,20 +936,17 @@ with menu6:
         
         btn_simpan_kar = st.button("💾 Simpan Karyawan", type="primary", use_container_width=True)
         
-        view_records_kar = st.session_state.df_karyawan.fillna("").astype(str).to_dict('records')
-        edit_records_kar = edited_kar_state.fillna("").astype(str).to_dict('records')
-        
-        if btn_simpan_kar or (view_records_kar != edit_records_kar):
+        if btn_simpan_kar:
             edited_kar_state = edited_kar_state[edited_kar_state['Nama Karyawan'].astype(str).str.strip() != ""]
             st.session_state.df_karyawan = edited_kar_state
             ws["karyawan"].clear()
             ws["karyawan"].update([edited_kar_state.columns.values.tolist()] + edited_kar_state.fillna("").values.tolist())
-            st.session_state["notif_6k"] = "✅ Daftar Karyawan Berhasil Disimpan!" if btn_simpan_kar else "✅ Daftar Karyawan Berhasil Disimpan Otomatis!"
+            st.session_state["notif_6k"] = "✅ Daftar Karyawan Berhasil Disimpan Manual!"
             st.rerun()
 
     with col_pekerjaan:
         st.subheader("🛠️ Daftar Pekerjaan & Upah")
-        st.caption("💡 Tambah/edit jenis dan upah, lalu tekan **Enter**. Atau klik tombol **Simpan**.")
+        st.caption("💡 Tambah/edit jenis dan upah, lalu klik tombol **Simpan** di bawah.")
         
         notif_area_6p = st.empty()
         if "notif_6p" in st.session_state:
@@ -970,10 +973,7 @@ with menu6:
         
         btn_simpan_pek = st.button("💾 Simpan Pekerjaan", type="primary", use_container_width=True)
         
-        view_records_pek = df_pek_view.fillna("").astype(str).to_dict('records')
-        edit_records_pek = edited_pek_state.fillna("").astype(str).to_dict('records')
-        
-        if btn_simpan_pek or (view_records_pek != edit_records_pek):
+        if btn_simpan_pek:
             edited_pek_state = edited_pek_state[edited_pek_state['Jenis Pekerjaan'].astype(str).str.strip() != ""]
             col_upah_target = edited_pek_state.columns[1] if len(edited_pek_state.columns) > 1 else 'Upah'
             edited_pek_state[col_upah_target] = pd.to_numeric(edited_pek_state[col_upah_target], errors='coerce').fillna(0)
@@ -981,5 +981,5 @@ with menu6:
             st.session_state.df_pekerjaan = df_final_pek
             ws["pekerjaan"].clear()
             ws["pekerjaan"].update([df_final_pek.columns.values.tolist()] + df_final_pek.fillna("").values.tolist())
-            st.session_state["notif_6p"] = "✅ Daftar Pekerjaan & Upah Berhasil Disimpan!" if btn_simpan_pek else "✅ Daftar Pekerjaan & Upah Berhasil Disimpan Otomatis!"
+            st.session_state["notif_6p"] = "✅ Daftar Pekerjaan & Upah Berhasil Disimpan Manual!"
             st.rerun()
