@@ -356,7 +356,7 @@ with menu2:
 with menu3:
     st.header("Pencatatan Penambahan & Pengurangan")
     today_date_kb = datetime.today().date()
-    if "last_date_kb" not in st.session_state or st.session_state.last_date_kb > today_date_kb: st.session_state.last_date_kb = today_date_kb
+    if "last_date_kb" not in st.session_state or st.session_state.last_date_kb > today_date: st.session_state.last_date_kb = today_date_kb
     if "last_karyawan_kb" not in st.session_state: st.session_state.last_karyawan_kb = daftar_karyawan[0] if daftar_karyawan else ""
 
     if len(daftar_karyawan) > 0:
@@ -688,33 +688,11 @@ with menu5:
         notif_area_5_db.empty()
         del st.session_state["notif_5_db"]
 
-    def save_pengeluaran_callback():
-        edited_peng = st.session_state.get("editor_pengeluaran")
-        if edited_peng is not None and isinstance(edited_peng, pd.DataFrame):
-            edited_peng = edited_peng[edited_peng['Keterangan'].astype(str).str.strip() != ""]
-            edited_peng['Nominal'] = pd.to_numeric(edited_peng['Nominal'], errors='coerce').fillna(0)
-            
-            if 'ID Lain' in edited_peng.columns:
-                ids = edited_peng['ID Lain'].apply(lambda x: f"LAIN-{int(time.time()*1000)}" if pd.isna(x) or str(x).strip() == "" else str(x))
-            else:
-                ids = [f"LAIN-{int(time.time()*1000)}-{i}" for i in range(len(edited_peng))]
-                
-            df_final_peng = pd.DataFrame({
-                'ID Lain': ids,
-                'Keterangan': edited_peng['Keterangan'],
-                'Nominal': edited_peng['Nominal']
-            })
-            
-            st.session_state.df_pengeluaran = df_final_peng
-            ws["pengeluaran"].clear()
-            ws["pengeluaran"].update([df_final_peng.columns.values.tolist()] + df_final_peng.fillna("").values.tolist())
-            st.session_state["notif_5_db"] = "✅ Pengeluaran Lainnya Berhasil Disimpan Otomatis!"
-
-    df_peng_view = st.session_state.df_pengeluaran[['ID Lain', 'Keterangan', 'Nominal']].copy()
+    df_peng_view = st.session_state.df_pengeluaran[['ID Lain', 'Keterangan', 'Nominal']].copy().reset_index(drop=True)
     if not df_peng_view.empty:
         df_peng_view['Nominal'] = pd.to_numeric(df_peng_view['Nominal'], errors='coerce').fillna(0)
     else:
-        df_peng_view = pd.DataFrame(columns=["ID Lain", "Keterangan", "Nominal"])
+        df_peng_view = pd.DataFrame(columns=["ID Lain", "Keterangan", "Nominal"]).reset_index(drop=True)
 
     edited_peng_state = st.data_editor(
         df_peng_view,
@@ -726,31 +704,26 @@ with menu5:
             "Keterangan": st.column_config.TextColumn("Keterangan", required=True),
             "Nominal": st.column_config.NumberColumn("Nominal (Rp)", format="Rp %,d", required=True)
         },
-        key="editor_pengeluaran",
-        on_change=save_pengeluaran_callback
+        key="editor_pengeluaran"
     )
     
-    if st.button("💾 Simpan Pengeluaran Lainnya", type="primary", use_container_width=True):
-        if edited_peng_state is not None:
-            edited_peng_state = edited_peng_state[edited_peng_state['Keterangan'].astype(str).str.strip() != ""]
-            edited_peng_state['Nominal'] = pd.to_numeric(edited_peng_state['Nominal'], errors='coerce').fillna(0)
+    btn_simpan_pengeluaran = st.button("💾 Simpan Pengeluaran Lainnya", type="primary", use_container_width=True)
+    
+    view_records_peng = df_peng_view.fillna("").astype(str).to_dict('records')
+    edit_records_peng = edited_peng_state.fillna("").astype(str).to_dict('records')
+    
+    if btn_simpan_pengeluaran or (view_records_peng != edit_records_peng):
+        edited_peng_state = edited_peng_state[edited_peng_state['Keterangan'].astype(str).str.strip() != ""]
+        noms_lain = pd.to_numeric(edited_peng_state['Nominal'], errors='coerce').fillna(0)
+        
+        ids_lain = edited_peng_state['ID Lain'].apply(lambda x: f"LAIN-{int(time.time()*1000)}-{pd.util.hash_pandas_object(pd.Series([x])).iloc[0]}" if pd.isna(x) or str(x).strip() == "" else str(x))
             
-            if 'ID Lain' in edited_peng_state.columns:
-                ids = edited_peng_state['ID Lain'].apply(lambda x: f"LAIN-{int(time.time()*1000)}" if pd.isna(x) or str(x).strip() == "" else str(x))
-            else:
-                ids = [f"LAIN-{int(time.time()*1000)}-{i}" for i in range(len(edited_peng_state))]
-                
-            df_final_peng = pd.DataFrame({
-                'ID Lain': ids,
-                'Keterangan': edited_peng_state['Keterangan'],
-                'Nominal': edited_peng_state['Nominal']
-            })
-            
-            st.session_state.df_pengeluaran = df_final_peng
-            ws["pengeluaran"].clear()
-            ws["pengeluaran"].update([df_final_peng.columns.values.tolist()] + df_final_peng.fillna("").values.tolist())
-            st.session_state["notif_5_db"] = "✅ Pengeluaran Lainnya Berhasil Disimpan Manual!"
-            st.rerun()
+        df_final_peng = pd.DataFrame({'ID Lain': ids_lain, 'Keterangan': edited_peng_state['Keterangan'], 'Nominal': noms_lain})
+        st.session_state.df_pengeluaran = df_final_peng
+        ws["pengeluaran"].clear()
+        ws["pengeluaran"].update([df_final_peng.columns.values.tolist()] + df_final_peng.fillna("").values.tolist())
+        st.session_state["notif_5_db"] = "✅ Pengeluaran Lainnya Berhasil Disimpan!" if btn_simpan_pengeluaran else "✅ Pengeluaran Lainnya Berhasil Disimpan Otomatis!"
+        st.rerun()
 
     st.markdown("---")
     if st.button("🖼️ Generate Gambar Resume", type="primary"):
@@ -909,7 +882,7 @@ with menu5:
         st.download_button("📥 Unduh File JPG", data=byte_resume_img, file_name=f"Resume_Kas_{tgl_mulai_res.strftime('%d%m%Y')}.jpg", mime="image/jpeg")
 
 # ==========================================
-# MENU 6: PENGATURAN (KHUSUS MANUAL SAVE TANPA INDEX)
+# MENU 6: PENGATURAN
 # ==========================================
 with menu6:
     st.header("Pengaturan Master Data")
@@ -926,7 +899,6 @@ with menu6:
             notif_area_6k.empty()
             del st.session_state["notif_6k"]
 
-        # Membersihkan urutan index agar tidak bocor ke layar
         df_kar_view = st.session_state.df_karyawan.copy().reset_index(drop=True)
 
         edited_kar_state = st.data_editor(
@@ -939,7 +911,6 @@ with menu6:
         
         btn_simpan_kar = st.button("💾 Simpan Karyawan", type="primary", use_container_width=True)
         
-        # HANYA JALAN JIKA TOMBOL DI KLIK, SAMA SEKALI TIDAK ADA AUTO SAVE
         if btn_simpan_kar:
             edited_kar_state = edited_kar_state[edited_kar_state['Nama Karyawan'].astype(str).str.strip() != ""]
             st.session_state.df_karyawan = edited_kar_state
@@ -959,7 +930,6 @@ with menu6:
             notif_area_6p.empty()
             del st.session_state["notif_6p"]
 
-        # Membersihkan urutan index agar tidak bocor ke layar
         df_pek_view = st.session_state.df_pekerjaan.copy().reset_index(drop=True)
         if "Harga Per Pcs" in df_pek_view.columns: 
             df_pek_view = df_pek_view.rename(columns={"Harga Per Pcs": "Upah"})
@@ -978,7 +948,6 @@ with menu6:
         
         btn_simpan_pek = st.button("💾 Simpan Pekerjaan", type="primary", use_container_width=True)
         
-        # HANYA JALAN JIKA TOMBOL DI KLIK, SAMA SEKALI TIDAK ADA AUTO SAVE
         if btn_simpan_pek:
             edited_pek_state = edited_pek_state[edited_pek_state['Jenis Pekerjaan'].astype(str).str.strip() != ""]
             col_upah_target = edited_pek_state.columns[1] if len(edited_pek_state.columns) > 1 else 'Upah'
