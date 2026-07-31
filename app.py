@@ -183,7 +183,7 @@ menu1, menu2, menu3, menu4, menu5, menu6 = st.tabs([
 ])
 
 # ==========================================
-# MENU 1, 2, 3
+# MENU 1: INPUT HARIAN
 # ==========================================
 with menu1:
     st.header("Input Pekerjaan Harian")
@@ -250,6 +250,9 @@ with menu1:
                     st.session_state.notif_1_type = "error"
                     st.rerun()
 
+# ==========================================
+# MENU 2: DATABASE PEKERJAAN
+# ==========================================
 with menu2:
     st.header("Database Riwayat Pekerjaan")
     st.caption("💡 Pilih rentang tanggal pada kalender di bawah untuk melihat data periode tertentu. Cukup edit langsung di tabel lalu tekan **Enter**.")
@@ -287,10 +290,10 @@ with menu2:
                         time.sleep(1.5)
                         notif_area_2.empty()
                         del st.session_state[notif_key]
-                        
+                    
                     def save_callback(t=tgl, h=hari, orig_ids=df_harian['ID Data'].tolist()):
                         edited_df = st.session_state.get(f"editor_{t}_{h}")
-                        if edited_df is None or not isinstance(edited_df, pd.DataFrame) or edited_df.empty:
+                        if edited_df is None or not isinstance(edited_df, pd.DataFrame) or len(edited_df) == 0:
                             df_processed = pd.DataFrame(columns=['ID Data', 'Hari', 'Tanggal', 'Nama', 'Pekerjaan', 'Upah', 'Jumlah', 'Total'])
                         else:
                             col_id = edited_df.columns[0] if len(edited_df.columns) > 0 else None
@@ -318,6 +321,9 @@ with menu2:
         else: st.info(f"Tidak ada riwayat pekerjaan pada rentang tanggal tersebut.")
     else: st.info("Belum ada data pekerjaan yang tersimpan.")
 
+# ==========================================
+# MENU 3: PENAMBAHAN & PENGURANGAN
+# ==========================================
 with menu3:
     st.header("Pencatatan Penambahan & Pengurangan")
     today_date_kb = datetime.today().date()
@@ -412,7 +418,7 @@ with menu3:
                             
                         def save_kb_callback(t=tgl_val, orig_ids=df_harian_kb['ID Kasbon'].tolist()):
                             edited_df_kb = st.session_state.get(f"editor_kb_{t}")
-                            if edited_df_kb is None or edited_df_kb.empty:
+                            if edited_df_kb is None or not isinstance(edited_df_kb, pd.DataFrame) or len(edited_df_kb) == 0:
                                 df_proc_kb = pd.DataFrame(columns=['ID Kasbon', 'Tanggal', 'Nama', 'Tipe', 'Keterangan', 'Nominal'])
                             else:
                                 col_id = edited_df_kb.columns[0]
@@ -864,7 +870,7 @@ with menu5:
         st.download_button("📥 Unduh File JPG", data=byte_resume_img, file_name=f"Resume_Kas_{tgl_mulai_res.strftime('%d%m%Y')}.jpg", mime="image/jpeg")
 
 # ==========================================
-# MENU 6: PENGATURAN (SISTEM GANDA)
+# MENU 6: PENGATURAN (SISTEM GANDA + TOMBOL SIMPAN + NOTIFIKASI SLEEP)
 # ==========================================
 with menu6:
     st.header("Pengaturan Master Data")
@@ -899,7 +905,9 @@ with menu6:
             on_change=save_karyawan_callback
         )
         
-        if st.button("💾 Simpan Karyawan", type="primary", use_container_width=True):
+        btn_simpan_kar = st.button("💾 Simpan Karyawan", type="primary", use_container_width=True)
+        
+        if btn_simpan_kar:
             if edited_kar_state is not None:
                 edited_kar_state = edited_kar_state[edited_kar_state['Nama Karyawan'].astype(str).str.strip() != ""]
                 st.session_state.df_karyawan = edited_kar_state
@@ -948,7 +956,9 @@ with menu6:
             on_change=save_pekerjaan_callback
         )
         
-        if st.button("💾 Simpan Pekerjaan", type="primary", use_container_width=True):
+        btn_simpan_pek = st.button("💾 Simpan Pekerjaan", type="primary", use_container_width=True)
+        
+        if btn_simpan_pek:
             if edited_pek_state is not None:
                 edited_pek_state = edited_pek_state[edited_pek_state['Jenis Pekerjaan'].astype(str).str.strip() != ""]
                 col_upah_target = edited_pek_state.columns[1] if len(edited_pek_state.columns) > 1 else 'Upah'
