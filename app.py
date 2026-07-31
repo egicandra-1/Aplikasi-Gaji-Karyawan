@@ -27,10 +27,6 @@ st.set_page_config(page_title="Sistem Penggajian", layout="wide", page_icon="�
 # FUNGSI FONT LOKAL & PENGUKUR TEKS (AUTO-FIT CONTENT)
 # ==========================================
 def get_font(size, style="regular"):
-    """
-    Melacak font Arial/Calibri langsung ke dalam sistem Windows/Mac/Linux.
-    Memastikan font bisa diperbesar dan mudah dibaca tanpa koneksi internet.
-    """
     fonts = {
         "regular": [
             "arial.ttf", "calibri.ttf",
@@ -53,19 +49,13 @@ def get_font(size, style="regular"):
             "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"
         ]
     }
-    
     for path in fonts.get(style, fonts["regular"]):
-        try:
-            return ImageFont.truetype(path, size)
-        except IOError:
-            continue
-            
-    # Fallback darurat
+        try: return ImageFont.truetype(path, size)
+        except IOError: continue
     try: return ImageFont.load_default(size=size)
     except: return ImageFont.load_default()
 
 def get_text_dim(draw, text, font):
-    """Menghitung dimensi pixel teks secara presisi agar box Fit Content."""
     try:
         bbox = draw.textbbox((0, 0), text, font=font)
         return bbox[2] - bbox[0], bbox[3] - bbox[1]
@@ -74,11 +64,24 @@ def get_text_dim(draw, text, font):
         return w, h
 
 # ==========================================
-# SUNTIKAN CSS & JAVASCRIPT: MATIKAN TOTAL SHORTCUT 'C'
+# SUNTIKAN CSS: MEMBERSIHKAN UI STREAMLIT & MANAGE APP
 # ==========================================
 st.markdown("""
     <style>
+    /* Menyembunyikan ikon rantai, header, footer, dan tombol Manage App bawaan Streamlit */
     h1 a, h2 a, h3 a, h4 a, h5 a, h6 a { display: none !important; }
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    .stDeployButton {display:none;}
+    viewerBadge_container__1QSob {display: none !important;}
+    
+    /* Animasi memudar otomatis untuk notifikasi */
+    @keyframes fadeOutAlert {
+        0% { opacity: 1; }
+        80% { opacity: 1; }
+        100% { opacity: 0; visibility: hidden; }
+    }
     div[data-testid="stVerticalBlock"] div[data-testid="stAlert"] { animation: none !important; }
     </style>
     <script>
@@ -366,10 +369,12 @@ with menu3:
                     st.rerun()
 
 # ==========================================
-# MENU 4: CETAK SLIP GAJI (GAYA GALERI / KE PINGGIR)
+# MENU 4: CETAK SLIP GAJI (PREVIEW KECIL, RAPI, JEJER KE PINGGIR)
 # ==========================================
 with menu4:
     st.header("Cetak & Unduh Slip Gaji")
+    st.caption("💡 **Tip Mencetak:** Jangan mencetak dari browser! Klik tombol 'Unduh Slip' terlebih dahulu, lalu print gambar JPG yang ter-download agar hasilnya sempurna tanpa watermark.")
+    
     df_gaji = st.session_state.df_gaji.copy()
     df_kasbon = st.session_state.df_kasbon.copy()
     
@@ -384,10 +389,8 @@ with menu4:
             df_gaji['Tanggal'] = pd.to_datetime(df_gaji['Tanggal']).dt.date
             target_karyawan = daftar_karyawan if nama_slip_pilihan == "Semua Karyawan" else [nama_slip_pilihan]
             
-            # List untuk menampung gambar yang sudah jadi
             generated_slips = []
             
-            # PROSES RENDER GAMBAR DULU TANPA MENAMPILKAN LANGSUNG
             for nama_slip in target_karyawan:
                 df_filter_gaji = df_gaji[(df_gaji['Nama'] == nama_slip) & (df_gaji['Tanggal'] >= tgl_mulai_slip) & (df_gaji['Tanggal'] <= tgl_selesai_slip)]
                 df_filter_kb = df_kasbon[(df_kasbon['Nama'] == nama_slip) & (pd.to_datetime(df_kasbon['Tanggal']).dt.date >= tgl_mulai_slip) & (pd.to_datetime(df_kasbon['Tanggal']).dt.date <= tgl_selesai_slip)] if len(df_kasbon) > 0 else pd.DataFrame()
@@ -470,23 +473,21 @@ with menu4:
                     buf_s = io.BytesIO()
                     img_slip.save(buf_s, format="JPEG", quality=95)
                     byte_slip = buf_s.getvalue()
-                    
-                    # Simpan data tuple (Nama, Gambar Bytes) ke dalam list
                     generated_slips.append((nama_slip, byte_slip))
             
-            # --- MENAMPILKAN HASIL SECARA BERJAJAR KE PINGGIR (KOLOM GRID) ---
+            # --- MENAMPILKAN HASIL SECARA BERJAJAR (THUMBNAIL KECIL) ---
             if generated_slips:
                 st.success(f"✅ Berhasil membuat {len(generated_slips)} Slip Gaji!")
-                
-                cols_per_row = 3 # Diubah ke 3 kolom per baris (berjajar ke pinggir)
+                cols_per_row = 3
                 for i in range(0, len(generated_slips), cols_per_row):
-                    cols = st.columns(cols_per_row) # Membuat baris dengan 3 kolom
+                    cols = st.columns(cols_per_row)
                     for j in range(cols_per_row):
                         if i + j < len(generated_slips):
                             nama_slip_hasil, byte_slip_hasil = generated_slips[i + j]
                             with cols[j]:
-                                st.markdown(f"**📄 Slip Gaji: {nama_slip_hasil}**")
-                                st.image(byte_slip_hasil, use_container_width=True) # Fit ke kolom
+                                st.markdown(f"**📄 Slip: {nama_slip_hasil}**")
+                                # MENGECILKAN TAMPILAN DI WEB AGAR TIDAK TERLALU BESAR (THUMBNAIL)
+                                st.image(byte_slip_hasil, width=250) 
                                 st.download_button(
                                     label="📥 Unduh Slip", 
                                     data=byte_slip_hasil, 
@@ -498,10 +499,12 @@ with menu4:
                 st.info("Tidak ada data pekerjaan atau kasbon untuk karyawan tersebut pada periode yang dipilih.")
 
 # ==========================================
-# MENU 5: LAPORAN RESUME KAS
+# MENU 5: LAPORAN RESUME KAS (PREVIEW KECIL & FIT CONTENT)
 # ==========================================
 with menu5:
     st.header("📊 Laporan Resume Kas")
+    st.caption("💡 **Tip Mencetak:** Klik tombol 'Unduh Laporan Resume' di bawah gambar, lalu cetak (Print) file JPG yang sudah ter-download agar hasilnya sempurna tanpa watermark.")
+    
     df_gaji = st.session_state.df_gaji.copy()
     df_kasbon = st.session_state.df_kasbon.copy()
     df_lain_all = st.session_state.df_pengeluaran.copy()
@@ -684,7 +687,8 @@ with menu5:
         
         st.markdown("---")
         st.subheader("👁️ Preview Laporan Resume")
-        st.image(byte_resume_img, width=600) 
+        # MENGECILKAN TAMPILAN DI WEB AGAR TIDAK TERLALU BESAR (THUMBNAIL)
+        st.image(byte_resume_img, width=350) 
         st.download_button("📥 Unduh Laporan Resume (JPG)", data=byte_resume_img, file_name=f"Resume_Kas_{tgl_mulai_res.strftime('%d%m%Y')}.jpg", mime="image/jpeg")
 
 # ==========================================
