@@ -656,7 +656,7 @@ with menu4:
                 st.info("Tidak ada data pekerjaan atau kasbon untuk karyawan tersebut pada periode yang dipilih.")
 
 # ==========================================
-# MENU 5: LAPORAN RESUME KAS
+# MENU 5: LAPORAN RESUME KAS (MANUAL SAVE)
 # ==========================================
 with menu5:
     st.header("📊 Laporan Resume Kas")
@@ -679,7 +679,7 @@ with menu5:
     
     # --- PENGELUARAN LAINNYA ---
     st.subheader("🛒 Pengeluaran Lainnya")
-    st.caption("💡 Tambah data di baris kosong paling bawah. Edit/Hapus langsung di tabel, lalu tekan **Enter**. Otomatis tersimpan ke server.")
+    st.caption("💡 Tambah data di baris kosong paling bawah. Edit/Hapus langsung di tabel, lalu klik tombol **Simpan** di bawah.")
     
     notif_area_5_db = st.empty()
     if "notif_5_db" in st.session_state:
@@ -709,10 +709,8 @@ with menu5:
     
     btn_simpan_pengeluaran = st.button("💾 Simpan Pengeluaran Lainnya", type="primary", use_container_width=True)
     
-    view_records_peng = df_peng_view.fillna("").astype(str).to_dict('records')
-    edit_records_peng = edited_peng_state.fillna("").astype(str).to_dict('records')
-    
-    if btn_simpan_pengeluaran or (view_records_peng != edit_records_peng):
+    # HANYA JALAN JIKA TOMBOL DI KLIK, SAMA SEKALI TIDAK ADA AUTO SAVE PADA BAGIAN INI
+    if btn_simpan_pengeluaran:
         edited_peng_state = edited_peng_state[edited_peng_state['Keterangan'].astype(str).str.strip() != ""]
         noms_lain = pd.to_numeric(edited_peng_state['Nominal'], errors='coerce').fillna(0)
         
@@ -722,7 +720,7 @@ with menu5:
         st.session_state.df_pengeluaran = df_final_peng
         ws["pengeluaran"].clear()
         ws["pengeluaran"].update([df_final_peng.columns.values.tolist()] + df_final_peng.fillna("").values.tolist())
-        st.session_state["notif_5_db"] = "✅ Pengeluaran Lainnya Berhasil Disimpan!" if btn_simpan_pengeluaran else "✅ Pengeluaran Lainnya Berhasil Disimpan Otomatis!"
+        st.session_state["notif_5_db"] = "✅ Pengeluaran Lainnya Berhasil Disimpan Manual!"
         st.rerun()
 
     st.markdown("---")
