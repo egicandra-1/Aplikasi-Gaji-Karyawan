@@ -190,7 +190,7 @@ menu1, menu2, menu3, menu4, menu5, menu6 = st.tabs([
 ])
 
 # ==========================================
-# MENU 1, 2, 3
+# MENU 1, 2, 3 (TETAP SAMA)
 # ==========================================
 with menu1:
     st.header("Input Pekerjaan Harian")
@@ -369,7 +369,7 @@ with menu3:
                     st.rerun()
 
 # ==========================================
-# MENU 4: CETAK SLIP GAJI (TAJAM & TOMBOL PRINT LANGSUNG JS)
+# MENU 4: CETAK SLIP GAJI (MARGIN KETAT & NO WATERMARK)
 # ==========================================
 with menu4:
     st.header("Cetak & Unduh Slip Gaji")
@@ -395,15 +395,15 @@ with menu4:
                 df_filter_kb = df_kasbon[(df_kasbon['Nama'] == nama_slip) & (pd.to_datetime(df_kasbon['Tanggal']).dt.date >= tgl_mulai_slip) & (pd.to_datetime(df_kasbon['Tanggal']).dt.date <= tgl_selesai_slip)] if len(df_kasbon) > 0 else pd.DataFrame()
                 
                 if len(df_filter_gaji) > 0 or len(df_filter_kb) > 0:
-                    scale = 4 # Resolusi tinggi agar tinta menempel pekat
+                    scale = 4 # Resolusi tinggi thermal printer
                     f_reg = get_font(12 * scale, "mono") 
                     f_bold = get_font(14 * scale, "mono")
                     f_title = get_font(18 * scale, "mono")
                     
                     lines = []
+                    lines.append(("=================================", f_bold, "left", 5 * scale))
+                    lines.append(("SLIP GAJI", f_title, "center", 10 * scale))
                     lines.append(("=================================", f_bold, "left", 10 * scale))
-                    lines.append(("SLIP GAJI", f_title, "center", 15 * scale))
-                    lines.append(("=================================", f_bold, "left", 15 * scale))
                     lines.append((f"Nama    : {nama_slip}", f_bold, "left", 10 * scale))
                     lines.append((f"Periode : {tgl_mulai_slip.strftime('%d/%m/%Y')} - {tgl_selesai_slip.strftime('%d/%m/%Y')}", f_bold, "left", 10 * scale))
                     lines.append(("=================================", f_bold, "left", 10 * scale))
@@ -411,7 +411,7 @@ with menu4:
                     total_upah = 0
                     first_day = True
                     for tgl, data_harian in df_filter_gaji.groupby('Tanggal'):
-                        if not first_day: lines.append(("", f_bold, "left", 25 * scale))
+                        if not first_day: lines.append(("", f_bold, "left", 15 * scale))
                         first_day = False
                         hari_indo = HARI_INDO.get(tgl.strftime("%A"), "")
                         lines.append((f"Hari/Tgl: {hari_indo}, {tgl.strftime('%d/%m/%Y')}", f_bold, "left", 10 * scale))
@@ -426,7 +426,7 @@ with menu4:
                         
                     tot_tambah, tot_kurang = 0, 0
                     if len(df_filter_kb) > 0:
-                        lines.append(("", f_bold, "left", 25 * scale))
+                        lines.append(("", f_bold, "left", 15 * scale))
                         lines.append(("--- CATATAN TAMBAHAN ---", f_bold, "left", 10 * scale))
                         for _, rkb in df_filter_kb.iterrows():
                             nom = float(rkb['Nominal'])
@@ -436,7 +436,7 @@ with menu4:
                             else: tot_kurang += nom
                             
                     total_bersih = total_upah + tot_tambah - tot_kurang
-                    lines.append(("=================================", f_bold, "left", 25 * scale))
+                    lines.append(("=================================", f_bold, "left", 15 * scale))
                     lines.append((f"TOTAL GAJI DITERIMA: Rp{total_bersih:,.0f}".replace(",", "."), f_bold, "left", 15 * scale))
                     lines.append(("=================================", f_bold, "left", 15 * scale))
                     
@@ -444,7 +444,8 @@ with menu4:
                     dummy_draw = ImageDraw.Draw(dummy_img)
                     
                     max_w = 0
-                    current_y = 20 * scale 
+                    # Margin atas dibuat sangat mepet (hanya 10 pixel * scale)
+                    current_y = 10 * scale 
                     rendered_lines = []
                     for text, font, align, spacing_top in lines:
                         current_y += spacing_top
@@ -456,9 +457,11 @@ with menu4:
                         rendered_lines.append((tw, current_y, th, text, font, align))
                         current_y += th
                     
-                    margin_x = 30 * scale
+                    # Margin kiri kanan dipangkas mepet (hanya 10 pixel * scale)
+                    margin_x = 10 * scale
                     canvas_w = int(max_w + (margin_x * 2))
-                    canvas_h = int(current_y + (30 * scale))
+                    # Margin bawah dipangkas habis
+                    canvas_h = int(current_y + (10 * scale))
                     
                     img_slip = Image.new('RGB', (canvas_w, canvas_h), color=(255, 255, 255))
                     draw_slip = ImageDraw.Draw(img_slip)
@@ -474,7 +477,6 @@ with menu4:
                     byte_slip = buf_s.getvalue()
                     generated_slips.append((nama_slip, byte_slip))
             
-            # --- MENAMPILKAN HASIL SECARA BERJAJAR & FITUR PRINT LANGSUNG ---
             if generated_slips:
                 st.success(f"✅ Berhasil membuat {len(generated_slips)} Slip Gaji!")
                 cols_per_row = 3
@@ -485,9 +487,9 @@ with menu4:
                             nama_slip_hasil, byte_slip_hasil = generated_slips[i + j]
                             with cols[j]:
                                 st.markdown(f"**📄 Slip: {nama_slip_hasil}**")
-                                st.image(byte_slip_hasil, width=250) # Tampilan web dikecilkan agar rapi
+                                st.image(byte_slip_hasil, width=250) 
                                 
-                                # TOMBOL PRINT LANGSUNG (BYPASS BROWSER)
+                                # SCRIPT PRINT LANGSUNG TANPA MARGIN BROWSER
                                 b64_img = base64.b64encode(byte_slip_hasil).decode()
                                 print_btn_html = f"""
                                 <div style="text-align: center; margin-bottom: 5px;">
@@ -496,7 +498,9 @@ with menu4:
                                 <script>
                                 function printImage() {{
                                     var win = window.open('', '_blank');
-                                    win.document.write('<html><head><title>Print Slip - {nama_slip_hasil}</title></head><body style="margin:0; padding:0; text-align:center;"><img src="data:image/jpeg;base64,{b64_img}" style="width: 100%;" onload="window.print(); window.close();" /></body></html>');
+                                    win.document.write('<html><head><title>Print Slip - {nama_slip_hasil}</title>');
+                                    win.document.write('<style>@page {{ margin: 0mm; size: auto; }} body {{ margin: 0px; text-align: center; background-color: white; }}</style>');
+                                    win.document.write('</head><body><img src="data:image/jpeg;base64,{b64_img}" style="width: 100%; max-width: 100%; display: block; margin: 0 auto;" onload="window.print(); window.close();" /></body></html>');
                                     win.document.close();
                                 }}
                                 </script>
@@ -701,9 +705,8 @@ with menu5:
         
         st.markdown("---")
         st.subheader("👁️ Preview Laporan Resume")
-        st.image(byte_resume_img, width=400) # Thumbnail kecil di web
+        st.image(byte_resume_img, width=400) 
         
-        # TOMBOL PRINT LANGSUNG (BYPASS BROWSER)
         b64_res = base64.b64encode(byte_resume_img).decode()
         print_res_html = f"""
         <div style="text-align: left; margin-bottom: 5px;">
@@ -712,7 +715,9 @@ with menu5:
         <script>
         function printRes() {{
             var win = window.open('', '_blank');
-            win.document.write('<html><head><title>Print Laporan Resume</title></head><body style="margin:0; padding:0; text-align:center;"><img src="data:image/jpeg;base64,{b64_res}" style="width: 100%; max-width: 800px;" onload="window.print(); window.close();" /></body></html>');
+            win.document.write('<html><head><title>Print Laporan Resume</title>');
+            win.document.write('<style>@page {{ margin: 0mm; size: auto; }} body {{ margin: 0px; text-align: center; background-color: white; }}</style>');
+            win.document.write('</head><body><img src="data:image/jpeg;base64,{b64_res}" style="width: 100%; max-width: 800px; display: block; margin: 0 auto;" onload="window.print(); window.close();" /></body></html>');
             win.document.close();
         }}
         </script>
