@@ -230,7 +230,7 @@ with menu1:
                     upah = tarif_pekerjaan.get(pekerjaan, 0)
                     total = jumlah * upah
                     try:
-                        id_data = f"ID-{int(time.time())}"
+                        id_data = f"ID-{int(time.time()*1000)}"
                         tgl_str = tanggal.strftime("%Y-%m-%d")
                         baris_baru = pd.DataFrame([{"ID Data": id_data, "Hari": nama_hari, "Tanggal": tgl_str, "Nama": nama, "Pekerjaan": pekerjaan, "Upah": upah, "Jumlah": jumlah, "Total": total}])
                         st.session_state.df_gaji = pd.concat([st.session_state.df_gaji, baris_baru], ignore_index=True)
@@ -251,7 +251,7 @@ with menu1:
                     st.rerun()
 
 # ==========================================
-# MENU 2: DATABASE PEKERJAAN (SAFE AUTO-SAVE)
+# MENU 2: DATABASE PEKERJAAN (AMAN DARI BUG COLUMN SHIFTING)
 # ==========================================
 with menu2:
     st.header("Database Riwayat Pekerjaan")
@@ -279,8 +279,8 @@ with menu2:
                 with st.expander(f"📅 Hari **{hari}**, Tanggal **{tgl}**", expanded=True):
                     df_harian = df_tampil[(df_tampil['Tanggal'] == tgl) & (df_tampil['Hari'] == hari)].copy()
                     
-                    # Dihilangkan 'ID Data' dari view agar tidak hilang/error saat dihapus user
-                    df_harian_view = df_harian[['Nama', 'Pekerjaan', 'Upah', 'Jumlah', 'Total']].copy().reset_index(drop=True)
+                    # PENTING: Jangan buang 'ID Data', sembunyikan saja pakai column_config agar urutan kolom tidak rusak!
+                    df_harian_view = df_harian[['ID Data', 'Nama', 'Pekerjaan', 'Upah', 'Jumlah', 'Total']].copy().reset_index(drop=True)
                     df_harian_view['Upah'] = pd.to_numeric(df_harian_view['Upah'], errors='coerce').fillna(0)
                     df_harian_view['Jumlah'] = pd.to_numeric(df_harian_view['Jumlah'], errors='coerce').fillna(0)
                     df_harian_view['Total'] = pd.to_numeric(df_harian_view['Total'], errors='coerce').fillna(0)
@@ -300,39 +300,32 @@ with menu2:
                         hide_index=True, 
                         key=f"editor_{tgl}_{hari}",
                         column_config={
+                            "ID Data": None, # Sembunyikan ID agar layar rapi, tapi datanya tetap utuh
                             "Upah": st.column_config.NumberColumn("Upah", format="Rp %,d"), 
                             "Jumlah": st.column_config.NumberColumn("Jumlah", format="%,d"), 
                             "Total": st.column_config.NumberColumn("Total", format="Rp %,d")
                         }
                     )
 
-                    # LOGIC SAFE REPLACEMENT (ANTI-ERROR)
-                    if edited_df.fillna("").to_dict('records') != df_harian_view.fillna("").to_dict('records'):
+                    # LOGIC SAFE AUTO-SAVE
+                    view_records = df_harian_view.fillna("").astype(str).to_dict('records')
+                    edit_records = edited_df.fillna("").astype(str).to_dict('records')
+                    
+                    if view_records != edit_records:
                         edited_df = edited_df[edited_df['Nama'].astype(str).str.strip() != ""] # Buang baris kosong
                         
-                        ids = [f"ID-{int(time.time())}-{i}" for i in range(len(edited_df))]
+                        ids = edited_df['ID Data'].apply(lambda x: f"ID-{int(time.time()*1000)}-{pd.util.hash_pandas_object(pd.Series([x])).iloc[0]}" if pd.isna(x) or str(x).strip() == "" else str(x))
                         upahs = pd.to_numeric(edited_df['Upah'], errors='coerce').fillna(0)
                         jumlahs = pd.to_numeric(edited_df['Jumlah'], errors='coerce').fillna(0)
-                        totals = upahs * jumlahs
+                        totals = jumlahs * upahs
                         
-                        df_processed = pd.DataFrame({
-                            'ID Data': ids, 
-                            'Hari': hari, 
-                            'Tanggal': tgl, 
-                            'Nama': edited_df['Nama'], 
-                            'Pekerjaan': edited_df['Pekerjaan'], 
-                            'Upah': upahs, 
-                            'Jumlah': jumlahs, 
-                            'Total': totals
-                        })
+                        df_processed = pd.DataFrame({'ID Data': ids, 'Hari': hari, 'Tanggal': tgl, 'Nama': edited_df['Nama'], 'Pekerjaan': edited_df['Pekerjaan'], 'Upah': upahs, 'Jumlah': jumlahs, 'Total': totals})
                         
-                        # Hapus semua data lama untuk hari ini (berdasarkan ID lama), ganti dengan yang baru
                         orig_ids = df_harian['ID Data'].tolist()
                         df_sisa = st.session_state.df_gaji[~st.session_state.df_gaji['ID Data'].isin(orig_ids)]
                         
                         df_final = pd.concat([df_sisa, df_processed]).sort_values(by="Tanggal").reset_index(drop=True)
                         if 'Date_Obj' in df_final.columns: df_final = df_final.drop(columns=['Date_Obj'])
-                        
                         st.session_state.df_gaji = df_final
                         ws["gaji"].clear()
                         ws["gaji"].update([df_final.columns.values.tolist()] + df_final.fillna("").values.tolist())
@@ -342,7 +335,7 @@ with menu2:
     else: st.info("Belum ada data pekerjaan yang tersimpan.")
 
 # ==========================================
-# MENU 3: PENAMBAHAN & PENGURANGAN (SAFE AUTO-SAVE)
+# MENU 3: PENAMBAHAN & PENGURANGAN
 # ==========================================
 with menu3:
     st.header("Pencatatan Penambahan & Pengurangan")
@@ -376,7 +369,7 @@ with menu3:
                 nominal_kb = int(nominal_str.strip()) if nominal_str.strip().isdigit() else 0
                 if nominal_kb > 0 and ket_kb.strip() != "":
                     try:
-                        id_kb = f"KB-{int(time.time())}"
+                        id_kb = f"KB-{int(time.time()*1000)}"
                         tgl_str = tgl_kb.strftime("%Y-%m-%d")
                         baris_kb = pd.DataFrame([{"ID Kasbon": id_kb, "Tanggal": tgl_str, "Nama": nama_kb, "Tipe": tipe_kb, "Keterangan": ket_kb, "Nominal": nominal_kb}])
                         st.session_state.df_kasbon = pd.concat([st.session_state.df_kasbon, baris_kb], ignore_index=True)
@@ -406,17 +399,14 @@ with menu3:
             default_start_kb = df_kasbon_db['Date_Obj'].min()
             
             col_f1_kb, col_f2_kb = st.columns([2, 1])
-            with col_f1_kb:
-                rentang_kb = st.date_input("Pilih Periode Transaksi", value=(default_start_kb, max_tgl_kb), max_value=datetime.today().date(), format="DD/MM/YYYY", key="filter_tgl_kb")
-            with col_f2_kb:
-                filter_nama_kb = st.selectbox("🔍 Filter Karyawan:", ["Semua Karyawan"] + daftar_karyawan, key="filter_nama_kb")
+            with col_f1_kb: rentang_kb = st.date_input("Pilih Periode Transaksi", value=(default_start_kb, max_tgl_kb), max_value=datetime.today().date(), format="DD/MM/YYYY", key="filter_tgl_kb")
+            with col_f2_kb: filter_nama_kb = st.selectbox("🔍 Filter Karyawan:", ["Semua Karyawan"] + daftar_karyawan, key="filter_nama_kb")
                 
             if isinstance(rentang_kb, tuple) and len(rentang_kb) == 2: t_start_kb, t_end_kb = rentang_kb
             else: t_start_kb = t_end_kb = rentang_kb[0] if isinstance(rentang_kb, tuple) else rentang_kb
                 
             df_tampil_kb = df_kasbon_db[(df_kasbon_db['Date_Obj'] >= t_start_kb) & (df_kasbon_db['Date_Obj'] <= t_end_kb)].copy()
-            if filter_nama_kb != "Semua Karyawan":
-                df_tampil_kb = df_tampil_kb[df_tampil_kb['Nama'] == filter_nama_kb]
+            if filter_nama_kb != "Semua Karyawan": df_tampil_kb = df_tampil_kb[df_tampil_kb['Nama'] == filter_nama_kb]
                 
             if len(df_tampil_kb) > 0:
                 df_tampil_kb = df_tampil_kb.sort_values(by=["Tanggal", "Nama"]).drop(columns=["Date_Obj"])
@@ -425,9 +415,7 @@ with menu3:
                 for tgl_val in daftar_tanggal_kb:
                     with st.expander(f"📅 Tanggal Transaksi: **{tgl_val}**", expanded=True):
                         df_harian_kb = df_tampil_kb[df_tampil_kb['Tanggal'] == tgl_val].copy()
-                        
-                        # Tanpa ID Kasbon di view
-                        df_harian_view_kb = df_harian_kb[['Nama', 'Tipe', 'Keterangan', 'Nominal']].copy().reset_index(drop=True)
+                        df_harian_view_kb = df_harian_kb[['ID Kasbon', 'Nama', 'Tipe', 'Keterangan', 'Nominal']].copy().reset_index(drop=True)
                         df_harian_view_kb['Nominal'] = pd.to_numeric(df_harian_view_kb['Nominal'], errors='coerce').fillna(0)
                         
                         notif_key_kb = f"notif_3_{tgl_val}"
@@ -443,28 +431,24 @@ with menu3:
                             num_rows="dynamic",
                             use_container_width=True,
                             column_config={
-                                "Tipe": st.column_config.SelectboxColumn("Tipe Transaksi", options=["Penambahan", "Pengurangan"], required=True),
+                                "ID Kasbon": None, 
+                                "Tipe": st.column_config.SelectboxColumn("Tipe Transaksi", options=["Penambahan", "Pengurangan"], required=True), 
                                 "Nominal": st.column_config.NumberColumn("Nominal (Rp)", format="Rp %,d", required=True)
                             },
                             hide_index=True,
                             key=f"editor_kb_{tgl_val}"
                         )
                         
-                        # LOGIC SAFE REPLACEMENT
-                        if edited_df_kb.fillna("").to_dict('records') != df_harian_view_kb.fillna("").to_dict('records'):
+                        view_records_kb = df_harian_view_kb.fillna("").astype(str).to_dict('records')
+                        edit_records_kb = edited_df_kb.fillna("").astype(str).to_dict('records')
+                        
+                        if view_records_kb != edit_records_kb:
                             edited_df_kb = edited_df_kb[edited_df_kb['Nama'].astype(str).str.strip() != ""]
                             
-                            ids_kb = [f"KB-{int(time.time())}-{i}" for i in range(len(edited_df_kb))]
+                            ids_kb = edited_df_kb['ID Kasbon'].apply(lambda x: f"KB-{int(time.time()*1000)}-{pd.util.hash_pandas_object(pd.Series([x])).iloc[0]}" if pd.isna(x) or str(x).strip() == "" else str(x))
                             noms_kb = pd.to_numeric(edited_df_kb['Nominal'], errors='coerce').fillna(0)
                             
-                            df_proc_kb = pd.DataFrame({
-                                'ID Kasbon': ids_kb,
-                                'Tanggal': tgl_val,
-                                'Nama': edited_df_kb['Nama'],
-                                'Tipe': edited_df_kb['Tipe'],
-                                'Keterangan': edited_df_kb['Keterangan'],
-                                'Nominal': noms_kb
-                            })
+                            df_proc_kb = pd.DataFrame({'ID Kasbon': ids_kb, 'Tanggal': tgl_val, 'Nama': edited_df_kb['Nama'], 'Tipe': edited_df_kb['Tipe'], 'Keterangan': edited_df_kb['Keterangan'], 'Nominal': noms_kb})
                             
                             orig_ids_kb = df_harian_kb['ID Kasbon'].tolist()
                             df_sisa_kb = st.session_state.df_kasbon[~st.session_state.df_kasbon['ID Kasbon'].isin(orig_ids_kb)]
@@ -477,12 +461,9 @@ with menu3:
                             ws["kasbon"].update([df_final_kb.columns.values.tolist()] + df_final_kb.fillna("").values.tolist())
                             st.session_state[notif_key_kb] = "✅ Database Kasbon Tersimpan Otomatis!"
                             st.rerun()
-            else:
-                st.info("Tidak ada riwayat transaksi pada rentang tanggal tersebut.")
-        else:
-            st.info("Belum ada data penambahan atau pengurangan yang tersimpan.")
-    else:
-        st.info("Belum ada data karyawan. Silakan isi di Menu 6.")
+            else: st.info("Tidak ada riwayat transaksi pada rentang tanggal tersebut.")
+        else: st.info("Belum ada data penambahan atau pengurangan yang tersimpan.")
+    else: st.info("Belum ada data karyawan. Silakan isi di Menu 6.")
 
 # ==========================================
 # MENU 4: CETAK SLIP GAJI
@@ -653,7 +634,7 @@ with menu4:
                 st.info("Tidak ada data pekerjaan atau kasbon untuk karyawan tersebut pada periode yang dipilih.")
 
 # ==========================================
-# MENU 5: LAPORAN RESUME KAS (SAFE AUTO-SAVE)
+# MENU 5: LAPORAN RESUME KAS
 # ==========================================
 with menu5:
     st.header("📊 Laporan Resume Kas")
@@ -685,11 +666,11 @@ with menu5:
         notif_area_5_db.empty()
         del st.session_state["notif_5_db"]
 
-    df_peng_view = st.session_state.df_pengeluaran[['Keterangan', 'Nominal']].copy()
+    df_peng_view = st.session_state.df_pengeluaran[['ID Lain', 'Keterangan', 'Nominal']].copy()
     if not df_peng_view.empty:
         df_peng_view['Nominal'] = pd.to_numeric(df_peng_view['Nominal'], errors='coerce').fillna(0)
     else:
-        df_peng_view = pd.DataFrame(columns=["Keterangan", "Nominal"])
+        df_peng_view = pd.DataFrame(columns=["ID Lain", "Keterangan", "Nominal"])
 
     edited_peng_state = st.data_editor(
         df_peng_view,
@@ -697,6 +678,7 @@ with menu5:
         use_container_width=True,
         hide_index=True,
         column_config={
+            "ID Lain": None, 
             "Keterangan": st.column_config.TextColumn("Keterangan", required=True),
             "Nominal": st.column_config.NumberColumn("Nominal (Rp)", format="Rp %,d", required=True)
         },
@@ -705,18 +687,16 @@ with menu5:
     
     btn_simpan_pengeluaran = st.button("💾 Simpan Pengeluaran Lainnya", type="primary", use_container_width=True)
     
-    if btn_simpan_pengeluaran or (edited_peng_state.fillna("").to_dict('records') != df_peng_view.fillna("").to_dict('records')):
+    view_records_peng = df_peng_view.fillna("").astype(str).to_dict('records')
+    edit_records_peng = edited_peng_state.fillna("").astype(str).to_dict('records')
+    
+    if btn_simpan_pengeluaran or (view_records_peng != edit_records_peng):
         edited_peng_state = edited_peng_state[edited_peng_state['Keterangan'].astype(str).str.strip() != ""]
         noms_lain = pd.to_numeric(edited_peng_state['Nominal'], errors='coerce').fillna(0)
         
-        ids_lain = [f"LAIN-{int(time.time())}-{i}" for i in range(len(edited_peng_state))]
+        ids_lain = edited_peng_state['ID Lain'].apply(lambda x: f"LAIN-{int(time.time()*1000)}-{pd.util.hash_pandas_object(pd.Series([x])).iloc[0]}" if pd.isna(x) or str(x).strip() == "" else str(x))
             
-        df_final_peng = pd.DataFrame({
-            'ID Lain': ids_lain,
-            'Keterangan': edited_peng_state['Keterangan'],
-            'Nominal': noms_lain
-        })
-        
+        df_final_peng = pd.DataFrame({'ID Lain': ids_lain, 'Keterangan': edited_peng_state['Keterangan'], 'Nominal': noms_lain})
         st.session_state.df_pengeluaran = df_final_peng
         ws["pengeluaran"].clear()
         ws["pengeluaran"].update([df_final_peng.columns.values.tolist()] + df_final_peng.fillna("").values.tolist())
@@ -880,7 +860,7 @@ with menu5:
         st.download_button("📥 Unduh File JPG", data=byte_resume_img, file_name=f"Resume_Kas_{tgl_mulai_res.strftime('%d%m%Y')}.jpg", mime="image/jpeg")
 
 # ==========================================
-# MENU 6: PENGATURAN (SAFE AUTO-SAVE)
+# MENU 6: PENGATURAN
 # ==========================================
 with menu6:
     st.header("Pengaturan Master Data")
@@ -907,7 +887,10 @@ with menu6:
         
         btn_simpan_kar = st.button("💾 Simpan Karyawan", type="primary", use_container_width=True)
         
-        if btn_simpan_kar or (edited_kar_state.fillna("").to_dict('records') != st.session_state.df_karyawan.fillna("").to_dict('records')):
+        view_records_kar = st.session_state.df_karyawan.fillna("").astype(str).to_dict('records')
+        edit_records_kar = edited_kar_state.fillna("").astype(str).to_dict('records')
+        
+        if btn_simpan_kar or (view_records_kar != edit_records_kar):
             edited_kar_state = edited_kar_state[edited_kar_state['Nama Karyawan'].astype(str).str.strip() != ""]
             st.session_state.df_karyawan = edited_kar_state
             ws["karyawan"].clear()
@@ -944,7 +927,10 @@ with menu6:
         
         btn_simpan_pek = st.button("💾 Simpan Pekerjaan", type="primary", use_container_width=True)
         
-        if btn_simpan_pek or (edited_pek_state.fillna("").to_dict('records') != df_pek_view.fillna("").to_dict('records')):
+        view_records_pek = df_pek_view.fillna("").astype(str).to_dict('records')
+        edit_records_pek = edited_pek_state.fillna("").astype(str).to_dict('records')
+        
+        if btn_simpan_pek or (view_records_pek != edit_records_pek):
             edited_pek_state = edited_pek_state[edited_pek_state['Jenis Pekerjaan'].astype(str).str.strip() != ""]
             col_upah_target = edited_pek_state.columns[1] if len(edited_pek_state.columns) > 1 else 'Upah'
             edited_pek_state[col_upah_target] = pd.to_numeric(edited_pek_state[col_upah_target], errors='coerce').fillna(0)
