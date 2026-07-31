@@ -466,7 +466,7 @@ with menu3:
         st.info("Belum ada data karyawan. Silakan isi di Menu 6.")
 
 # ==========================================
-# MENU 4: CETAK SLIP GAJI (CATATAN OPSIONAL DI BAWAH GARIS AKHIR)
+# MENU 4: CETAK SLIP GAJI (CATATAN OPSIONAL DI BAWAH GARIS AKHIR & TANPA GARIS PUTUS)
 # ==========================================
 with menu4:
     st.header("Cetak & Unduh Slip Gaji")
@@ -484,7 +484,7 @@ with menu4:
         # Kolom Input Catatan Opsional Khusus per Karyawan
         st.markdown("---")
         st.subheader("✍️ Catatan Opsional per Karyawan (Opsional)")
-        st.caption("💡 Tulis catatan khusus yang ingin dicetak di paling bawah slip gaji (akan berada di bawah garis penutup akhir).")
+        st.caption("💡 Tulis catatan khusus yang ingin dicetak di paling bawah slip gaji (di bawah garis penutup akhir).")
         
         target_kar_list = daftar_karyawan if nama_slip_pilihan == "Semua Karyawan" else [nama_slip_pilihan]
         catatan_opsional_dict = {}
@@ -551,10 +551,9 @@ with menu4:
                     lines.append((f"TOTAL GAJI DITERIMA: Rp{total_bersih:,.0f}".replace(",", "."), f_bold, "left", 15 * scale))
                     lines.append(("=================================", f_bold, "left", 15 * scale))
                     
-                    # --- POSISI CATATAN OPSIONAL DI BAWAH GARIS PALING AKHIR ---
+                    # --- POSISI CATATAN OPSIONAL DI BAWAH GARIS PALING AKHIR (TANPA GARIS PUTUS-PUTUS DI ATASNYA) ---
                     catatan_input = catatan_opsional_dict.get(nama_slip, "").strip()
                     if catatan_input != "":
-                        lines.append(("---------------------------------", f_bold, "left", 8 * scale))
                         lines.append((f"Catatan : {catatan_input}", f_bold, "left", 8 * scale))
                         lines.append(("=================================", f_bold, "left", 10 * scale))
                     
