@@ -187,7 +187,7 @@ menu1, menu2, menu3, menu4, menu5, menu6 = st.tabs([
 ])
 
 # ==========================================
-# MENU 1, 2, 3
+# MENU 1, 2, 3 
 # ==========================================
 with menu1:
     st.header("Input Pekerjaan Harian")
@@ -366,7 +366,7 @@ with menu3:
                     st.rerun()
 
 # ==========================================
-# MENU 4: CETAK SLIP GAJI
+# MENU 4: CETAK SLIP GAJI (GAYA GALERI / KE PINGGIR)
 # ==========================================
 with menu4:
     st.header("Cetak & Unduh Slip Gaji")
@@ -374,7 +374,7 @@ with menu4:
     df_kasbon = st.session_state.df_kasbon.copy()
     
     if len(df_gaji) > 0 and len(daftar_karyawan) > 0:
-        rentang_slip = st.date_input("Pilih Periode Tanggal Slip Gaji", value=(datetime.today().date(), datetime.today().date()), max_value=datetime.today().date(), format="DD/MM/YYYY")
+        rentang_slip = st.date_input("Pilih Periode Tanggal Slip Gaji", value=(datetime.today().date(), datetime.today().date()), max_value=datetime.today().date(), format="DD/MM/YYYY", key="rentang_slip_gaji")
         if isinstance(rentang_slip, tuple) and len(rentang_slip) == 2: tgl_mulai_slip, tgl_selesai_slip = rentang_slip
         else: tgl_mulai_slip = tgl_selesai_slip = rentang_slip[0] if isinstance(rentang_slip, tuple) else rentang_slip
             
@@ -384,6 +384,10 @@ with menu4:
             df_gaji['Tanggal'] = pd.to_datetime(df_gaji['Tanggal']).dt.date
             target_karyawan = daftar_karyawan if nama_slip_pilihan == "Semua Karyawan" else [nama_slip_pilihan]
             
+            # List untuk menampung gambar yang sudah jadi
+            generated_slips = []
+            
+            # PROSES RENDER GAMBAR DULU TANPA MENAMPILKAN LANGSUNG
             for nama_slip in target_karyawan:
                 df_filter_gaji = df_gaji[(df_gaji['Nama'] == nama_slip) & (df_gaji['Tanggal'] >= tgl_mulai_slip) & (df_gaji['Tanggal'] <= tgl_selesai_slip)]
                 df_filter_kb = df_kasbon[(df_kasbon['Nama'] == nama_slip) & (pd.to_datetime(df_kasbon['Tanggal']).dt.date >= tgl_mulai_slip) & (pd.to_datetime(df_kasbon['Tanggal']).dt.date <= tgl_selesai_slip)] if len(df_kasbon) > 0 else pd.DataFrame()
@@ -467,9 +471,31 @@ with menu4:
                     img_slip.save(buf_s, format="JPEG", quality=95)
                     byte_slip = buf_s.getvalue()
                     
-                    st.subheader(f"📄 Slip Gaji: {nama_slip}")
-                    st.image(byte_slip, width=400) # Membatasi ukuran preview web agar rapi
-                    st.download_button(f"📥 Unduh Slip - {nama_slip}", data=byte_slip, file_name=f"Slip_{nama_slip}.jpg", mime="image/jpeg", key=f"dl_{nama_slip}")
+                    # Simpan data tuple (Nama, Gambar Bytes) ke dalam list
+                    generated_slips.append((nama_slip, byte_slip))
+            
+            # --- MENAMPILKAN HASIL SECARA BERJAJAR KE PINGGIR (KOLOM GRID) ---
+            if generated_slips:
+                st.success(f"✅ Berhasil membuat {len(generated_slips)} Slip Gaji!")
+                
+                cols_per_row = 3 # Diubah ke 3 kolom per baris (berjajar ke pinggir)
+                for i in range(0, len(generated_slips), cols_per_row):
+                    cols = st.columns(cols_per_row) # Membuat baris dengan 3 kolom
+                    for j in range(cols_per_row):
+                        if i + j < len(generated_slips):
+                            nama_slip_hasil, byte_slip_hasil = generated_slips[i + j]
+                            with cols[j]:
+                                st.markdown(f"**📄 Slip Gaji: {nama_slip_hasil}**")
+                                st.image(byte_slip_hasil, use_container_width=True) # Fit ke kolom
+                                st.download_button(
+                                    label="📥 Unduh Slip", 
+                                    data=byte_slip_hasil, 
+                                    file_name=f"Slip_{nama_slip_hasil}.jpg", 
+                                    mime="image/jpeg", 
+                                    key=f"dl_{nama_slip_hasil}"
+                                )
+            else:
+                st.info("Tidak ada data pekerjaan atau kasbon untuk karyawan tersebut pada periode yang dipilih.")
 
 # ==========================================
 # MENU 5: LAPORAN RESUME KAS
@@ -554,17 +580,15 @@ with menu5:
         total_pengeluaran_keseluruhan = total_gaji_semua + total_pengeluaran_lain
         sisa_uang = tarik_uang - total_pengeluaran_keseluruhan
         
-        # --- PRE-CALCULATE TABEL FIT CONTENT DENGAN FONT LOKAL SUPER CEPAT ---
-        scale = 3 # Resolusi super tinggi
-        f_title = get_font(32 * scale, "bold")
-        f_sub = get_font(20 * scale, "regular")
+        scale = 2
+        f_title = get_font(28 * scale, "bold")
+        f_sub = get_font(18 * scale, "regular")
         f_bold = get_font(18 * scale, "bold")
         f_reg = get_font(18 * scale, "regular")
         
         dummy_img = Image.new('RGB', (10, 10))
         dummy_draw = ImageDraw.Draw(dummy_img)
         
-        # Format angka menjadi rupiah
         tot_gaji_fmt = f"Rp {total_gaji_semua:,.0f}".replace(",", ".")
         tot_lain_fmt = f"Rp {total_pengeluaran_lain:,.0f}".replace(",", ".")
         tarik_fmt = f"Rp {tarik_uang:,.0f}".replace(",", ".")
@@ -578,16 +602,14 @@ with menu5:
             ("Total Pengeluaran Keseluruhan", total_keluar_fmt)
         ]
         
-        # 1. Hitung Lebar Otomatis berdasarkan text terpanjang
         c1_texts = ["NAMA KARYAWAN", "TOTAL GAJI KARYAWAN", "KETERANGAN", "TOTAL PENGELUARAN LAIN", "SISA SALDO KAS", "Tarikan Uang Cash", "Total Pengeluaran Keseluruhan", "1. RINCIAN GAJI KARYAWAN", "2. PENGELUARAN LAINNYA", "3. RINGKASAN SALDO KAS"] + daftar_karyawan + [r[0] for r in lain_rows]
         c2_texts = ["JUMLAH GAJI", "JUMLAH", "NOMINAL", tot_gaji_fmt, tot_lain_fmt, tarik_fmt, total_keluar_fmt, sisa_fmt] + [r[1] for r in gaji_rows] + [r[1] for r in lain_rows]
 
         max_w_c1 = max([get_text_dim(dummy_draw, t, f_bold)[0] for t in c1_texts] + [get_text_dim(dummy_draw, t, f_reg)[0] for t in c1_texts])
         max_w_c2 = max([get_text_dim(dummy_draw, t, f_bold)[0] for t in c2_texts] + [get_text_dim(dummy_draw, t, f_reg)[0] for t in c2_texts])
 
-        # Padding ketat (ruang dalam tabel lebih ramping & fit)
-        pad_x = 20 * scale
-        pad_y = 15 * scale
+        pad_x = 15 * scale
+        pad_y = 10 * scale
         
         col1_w = int(max_w_c1 + (pad_x * 2))
         col2_w = int(max_w_c2 + (pad_x * 2))
@@ -601,22 +623,19 @@ with menu5:
         tgl_str_res = f"Periode: {tgl_mulai_res.strftime('%d/%m/%Y')} s/d {tgl_selesai_res.strftime('%d/%m/%Y')}"
         pw, th_sub = get_text_dim(dummy_draw, tgl_str_res, f_sub)
 
-        margin = 50 * scale
-        # Menentukan lebar kanvas fix (memastikan title juga muat)
+        margin = 40 * scale
         min_canvas_w = max(tw, pw) + (margin * 2)
         actual_canvas_w = max(table_w + (margin * 2), min_canvas_w)
-        table_x = (actual_canvas_w - table_w) / 2 # Center table
+        table_x = (actual_canvas_w - table_w) / 2
         
-        # 2. Menghitung Total Tinggi Kanvas Tanpa Sisa Ruang
         tot_h_canvas = margin
         tot_h_canvas += int(th_tit + 15 * scale)
         tot_h_canvas += int(th_sub + 40 * scale)
         
         tot_h_canvas += (len(gaji_rows) + 3) * row_h + int(30 * scale)
         tot_h_canvas += (len(lain_rows) + 3) * row_h + int(30 * scale)
-        tot_h_canvas += (len(ringkasan_rows) + 3) * row_h + margin # Margin bawah penutup
+        tot_h_canvas += (len(ringkasan_rows) + 3) * row_h + margin 
         
-        # --- MENGGAMBAR KANVAS FINAL ---
         img_res = Image.new('RGB', (int(actual_canvas_w), int(tot_h_canvas)), color=(255, 255, 255))
         draw = ImageDraw.Draw(img_res)
         
@@ -629,37 +648,35 @@ with menu5:
         
         def draw_table_box(title_text, headers, rows_data, start_y, total_row, header_bg):
             curr_y = start_y
-            # 1. Header (Sub Judul Tabel)
-            draw.rectangle([table_x, curr_y, table_x + table_w, curr_y + row_h], fill=header_bg, outline=(0, 0, 0), width=3)
+            draw.rectangle([table_x, curr_y, table_x + table_w, curr_y + row_h], fill=header_bg, outline=(0, 0, 0), width=2)
             draw.text((table_x + pad_x, curr_y + pad_y), title_text, fill=(0, 0, 0), font=f_bold)
             curr_y += row_h
             
-            # 2. Subheader Kolom
-            draw.rectangle([table_x, curr_y, table_x + table_w, curr_y + row_h], fill=(245, 245, 245), outline=(0, 0, 0), width=3)
-            draw.line([table_x + col1_w, curr_y, table_x + col1_w, curr_y + row_h], fill=(0, 0, 0), width=3)
+            draw.rectangle([table_x, curr_y, table_x + table_w, curr_y + row_h], fill=(245, 245, 245), outline=(0, 0, 0), width=2)
+            draw.line([table_x + col1_w, curr_y, table_x + col1_w, curr_y + row_h], fill=(0, 0, 0), width=2)
             draw.text((table_x + pad_x, curr_y + pad_y), headers[0], fill=(0, 0, 0), font=f_bold)
             draw.text((table_x + col1_w + pad_x, curr_y + pad_y), headers[1], fill=(0, 0, 0), font=f_bold)
             curr_y += row_h
             
-            # 3. Baris Data (Fit & Ramping)
             for r in rows_data:
-                draw.rectangle([table_x, curr_y, table_x + table_w, curr_y + row_h], outline=(0, 0, 0), width=3)
-                draw.line([table_x + col1_w, curr_y, table_x + col1_w, curr_y + row_h], fill=(0, 0, 0), width=3)
+                draw.rectangle([table_x, curr_y, table_x + table_w, curr_y + row_h], outline=(0, 0, 0), width=2)
+                draw.line([table_x + col1_w, curr_y, table_x + col1_w, curr_y + row_h], fill=(0, 0, 0), width=2)
                 draw.text((table_x + pad_x, curr_y + pad_y), str(r[0]), fill=(0, 0, 0), font=f_reg)
                 draw.text((table_x + col1_w + pad_x, curr_y + pad_y), str(r[1]), fill=(0, 0, 0), font=f_reg)
                 curr_y += row_h
                 
-            # 4. Total Baris Bawah
-            draw.rectangle([table_x, curr_y, table_x + table_w, curr_y + row_h], fill=header_bg, outline=(0, 0, 0), width=3)
-            draw.line([table_x + col1_w, curr_y, table_x + col1_w, curr_y + row_h], fill=(0, 0, 0), width=3)
+            draw.rectangle([table_x, curr_y, table_x + table_w, curr_y + row_h], fill=header_bg, outline=(0, 0, 0), width=2)
+            draw.line([table_x + col1_w, curr_y, table_x + col1_w, curr_y + row_h], fill=(0, 0, 0), width=2)
             draw.text((table_x + pad_x, curr_y + pad_y), str(total_row[0]), fill=(0, 0, 0), font=f_bold)
             draw.text((table_x + col1_w + pad_x, curr_y + pad_y), str(total_row[1]), fill=(0, 0, 0), font=f_bold)
             curr_y += row_h
-            return curr_y + int(30 * scale) # Jarak aman antar tabel
+            return curr_y + int(30 * scale)
 
         y = draw_table_box("1. RINCIAN GAJI KARYAWAN", ("NAMA KARYAWAN", "JUMLAH GAJI"), gaji_rows, y, ("TOTAL GAJI KARYAWAN", tot_gaji_fmt), (183, 222, 181))
         y = draw_table_box("2. PENGELUARAN LAINNYA", ("KETERANGAN", "JUMLAH"), lain_rows, y, ("TOTAL PENGELUARAN LAIN", tot_lain_fmt), (248, 203, 173))
         y = draw_table_box("3. RINGKASAN SALDO KAS", ("KETERANGAN", "NOMINAL"), ringkasan_rows, y, ("SISA SALDO KAS", sisa_fmt), (255, 235, 156))
+
+        img_res = img_res.crop((0, 0, int(actual_canvas_w), int(y)))
 
         buf_r = io.BytesIO()
         img_res.save(buf_r, format="JPEG", quality=100)
@@ -667,7 +684,6 @@ with menu5:
         
         st.markdown("---")
         st.subheader("👁️ Preview Laporan Resume")
-        # Batasi ukuran tampilan preview di web agar tidak usah scroll terlalu jauh
         st.image(byte_resume_img, width=600) 
         st.download_button("📥 Unduh Laporan Resume (JPG)", data=byte_resume_img, file_name=f"Resume_Kas_{tgl_mulai_res.strftime('%d%m%Y')}.jpg", mime="image/jpeg")
 
