@@ -7,6 +7,8 @@ import io
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import json
+import os
+import glob
 
 # --- KAMUS HARI & BULAN BAHASA INDONESIA ---
 HARI_INDO = {
@@ -24,46 +26,61 @@ URUTAN_HARI = {"Senin": 1, "Selasa": 2, "Rabu": 3, "Kamis": 4, "Jumat": 5, "Sabt
 st.set_page_config(page_title="Sistem Penggajian", layout="wide", page_icon="📝")
 
 # ==========================================
-# FUNGSI FONT LOKAL ANTI-LOADING (SANGAT CEPAT)
+# FUNGSI FONT LOKAL ANTI-LOADING DENGAN PELACAK OTOMATIS
 # ==========================================
 def get_safe_font(size, font_style="regular"):
     """
-    Mengambil font langsung dari sistem operasi / server Streamlit Cloud.
-    Tanpa koneksi internet sehingga dijamin tidak akan loading muter-muter.
+    Mencari font langsung di dalam server/komputer tanpa internet.
+    Dijamin tidak loading dan font tetap bisa diperbesar.
     """
     if font_style == "bold":
         font_paths = [
             "arialbd.ttf", "Arial-Bold.ttf", 
             "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
             "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-            "DejaVuSans-Bold.ttf"
+            "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
+            "/usr/share/fonts/truetype/ubuntu/Ubuntu-B.ttf"
         ]
     elif font_style == "mono":
         font_paths = [
-            "cour.ttf", "consola.ttf", 
+            "cour.ttf", "consola.ttf", "RobotoMono-Regular.ttf",
             "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
             "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
-            "DejaVuSansMono.ttf"
+            "/usr/share/fonts/truetype/freefont/FreeMono.ttf"
         ]
     else:
         font_paths = [
             "arial.ttf", "Arial.ttf", 
             "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
             "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-            "DejaVuSans.ttf"
+            "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+            "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf"
         ]
 
+    # Coba gunakan list font umum
     for fp in font_paths:
         try:
             return ImageFont.truetype(fp, size)
-        except IOError:
+        except:
             continue
     
-    # Fallback terakhir (jika semua gagal, pakai default bawaan walau kecil)
+    # JIKA SEMUA GAGAL: Lacak semua font TTF yang ada di server Cloud Streamlit
+    ttf_fonts = glob.glob("/usr/share/fonts/**/*.ttf", recursive=True)
+    if ttf_fonts:
+        if font_style == "bold":
+            for f in ttf_fonts:
+                if "bold" in f.lower():
+                    try: return ImageFont.truetype(f, size)
+                    except: pass
+        for f in ttf_fonts:
+            try: return ImageFont.truetype(f, size)
+            except: pass
+
+    # Mustahil masuk sini di Linux standar, tapi untuk safety
     return ImageFont.load_default()
 
 def get_text_dim(draw, text, font):
-    """Fungsi aman untuk menghitung dimensi teks pada versi Pillow baru maupun lama."""
+    """Hitung dimensi teks dengan akurat."""
     try:
         bbox = draw.textbbox((0, 0), text, font=font)
         return bbox[2] - bbox[0], bbox[3] - bbox[1]
@@ -480,9 +497,6 @@ with menu4:
                 
                 if len(df_filter_gaji) > 0 or len(df_filter_kb) > 0:
                     baris_slip = [
-                        ("=================================", 6, "left"),
-                        ("SLIP GAJI", 15, "center"),
-                        ("=================================", 6, "left"),
                         (f"Nama    : {nama_slip}", 9, "left"),
                         (f"Periode : {tgl_mulai_slip.strftime('%d/%m/%Y')} - {tgl_selesai_slip.strftime('%d/%m/%Y')}", 9, "left"),
                         ("=================================", 6, "left")
@@ -578,7 +592,7 @@ with menu4:
                     st.download_button(f"📥 Unduh Slip - {nama_slip}", data=byte_slip, file_name=f"Slip_{nama_slip}.jpg", mime="image/jpeg", key=f"dl_{nama_slip}")
 
 # ==========================================
-# MENU 5: LAPORAN RESUME KAS
+# MENU 5: LAPORAN RESUME KAS (FONT BESAR + AUTO FINDER)
 # ==========================================
 with menu5:
     st.header("📊 Laporan Resume Kas")
@@ -684,46 +698,46 @@ with menu5:
         total_pengeluaran_keseluruhan = total_gaji_semua + total_pengeluaran_lain
         sisa_uang = tarik_uang - total_pengeluaran_keseluruhan
         
-        # --- LOAD FONT BESAR ANTI-GAGAL (TANPA INTERNET) ---
+        # --- LOAD FONT SYSTEM SANGAT CEPAT ---
         scale = 2
         f_title = get_safe_font(34 * scale, "bold")  # Judul super besar
         f_sub = get_safe_font(22 * scale, "regular") # Periode besar
         f_bold = get_safe_font(18 * scale, "bold")   # Text tabel tebal
         f_reg = get_safe_font(18 * scale, "regular") # Text tabel biasa
         
-        # --- HITUNG TINGGI ROW BERDASARKAN FONT ACTUAL ---
+        # --- HITUNG TINGGI ROW ---
         dummy_img = Image.new('RGB', (10, 10))
         dummy_draw = ImageDraw.Draw(dummy_img)
         tw_dummy, th_dummy = get_text_dim(dummy_draw, "Hj", f_bold)
-        row_h = int(th_dummy + (16 * scale)) # Padding atas bawah agar pas
+        row_h = int(th_dummy + (16 * scale)) # Margin dalam tabel
         
         margin = 40 * scale
-        table_w = 900 * scale # Lebar tabel
-        col1_w = int(table_w * 0.65) # Kolom pertama 65% lebar
+        table_w = 900 * scale # Lebar kotak tabel
+        col1_w = int(table_w * 0.65) # Kolom nama/ket 65% lebar
         w = table_w + (margin * 2)
-        h = 4000 * scale # Tinggi super aman (akan dipotong di bawah)
+        h = 4000 * scale # Sediakan tinggi kanvas extra
         
         img_res = Image.new('RGB', (w, h), color=(255, 255, 255))
         draw = ImageDraw.Draw(img_res)
         
         y = margin
         
-        # --- JUDUL BESAR & RATA TENGAH ---
+        # --- 1. JUDUL ---
         title_text = "RESUME LAPORAN KAS"
         tw, th = get_text_dim(draw, title_text, f_title)
         draw.text((margin + (table_w - tw)/2, y), title_text, fill=(0, 0, 0), font=f_title)
         y += int(th + 15 * scale)
         
-        # --- PERIODE BESAR & RATA TENGAH ---
+        # --- 2. PERIODE ---
         tgl_str_res = f"Periode: {tgl_mulai_res.strftime('%d/%m/%Y')} s/d {tgl_selesai_res.strftime('%d/%m/%Y')}"
         pw, ph = get_text_dim(draw, tgl_str_res, f_sub)
         draw.text((margin + (table_w - pw)/2, y), tgl_str_res, fill=(80, 80, 80), font=f_sub)
-        y += int(ph + 50 * scale) # Spasi sebelum tabel pertama
+        y += int(ph + 50 * scale)
         
-        # Fungsi Pembuat Kotak Tabel Presisi & Fit Content
+        # Fungsi Gambar Tabel Presisi & Fit Content
         def draw_table_box(title_text, headers, rows_data, start_y, total_row=None, header_bg=(210, 235, 210)):
             curr_y = start_y
-            text_y_offset = int((row_h - th_dummy) / 2) - int(3 * scale) # Teks pas di tengah baris
+            text_y_offset = int((row_h - th_dummy) / 2) - int(3 * scale) 
             
             # Header Utama
             draw.rectangle([margin, curr_y, margin + table_w, curr_y + row_h], fill=header_bg, outline=(0, 0, 0), width=2)
@@ -753,9 +767,9 @@ with menu5:
                 draw.text((margin + col1_w + 20 * scale, curr_y + text_y_offset), str(total_row[1]), fill=(0, 0, 0), font=f_bold)
                 curr_y += row_h
                 
-            return curr_y + int(40 * scale) # Jarak aman antar tabel
+            return curr_y + int(40 * scale) # Jarak antar tabel 
 
-        # 1. TABEL GAJI KARYAWAN
+        # --- TABEL 1 ---
         gaji_rows = []
         for k in daftar_karyawan:
             val = rekap_gaji.get(k, 0)
@@ -764,7 +778,7 @@ with menu5:
         tot_gaji_fmt = f"Rp {total_gaji_semua:,.0f}".replace(",", ".")
         y = draw_table_box("1. RINCIAN GAJI KARYAWAN", ("NAMA KARYAWAN", "JUMLAH GAJI"), gaji_rows, y, total_row=("TOTAL GAJI KARYAWAN", tot_gaji_fmt), header_bg=(183, 222, 181))
 
-        # 2. TABEL PENGELUARAN LAINNYA
+        # --- TABEL 2 ---
         lain_rows = []
         if len(df_lain_all) > 0:
             for _, row_l in df_lain_all.iterrows():
@@ -777,20 +791,18 @@ with menu5:
         tot_lain_fmt = f"Rp {total_pengeluaran_lain:,.0f}".replace(",", ".")
         y = draw_table_box("2. PENGELUARAN LAINNYA", ("KETERANGAN", "JUMLAH"), lain_rows, y, total_row=("TOTAL PENGELUARAN LAIN", tot_lain_fmt), header_bg=(248, 203, 173))
 
-        # 3. TABEL RINGKASAN SALDO KAS
+        # --- TABEL 3 ---
         tarik_fmt = f"Rp {tarik_uang:,.0f}".replace(",", ".")
         total_keluar_fmt = f"Rp {total_pengeluaran_keseluruhan:,.0f}".replace(",", ".")
         sisa_fmt = f"Rp {sisa_uang:,.0f}".replace(",", ".")
-        
         ringkasan_rows = [
             ("Tarikan Uang Cash", tarik_fmt),
             ("Total Pengeluaran Keseluruhan", total_keluar_fmt)
         ]
         y = draw_table_box("3. RINGKASAN SALDO KAS", ("KETERANGAN", "NOMINAL"), ringkasan_rows, y, total_row=("SISA SALDO KAS", sisa_fmt), header_bg=(255, 235, 156))
 
-        # --- FIT CONTENT SEJATI: Potong Gambar Sesuai Tinggi Aktual ---
-        final_height = y 
-        img_cropped = img_res.crop((0, 0, w, final_height))
+        # --- CROP GAMBAR (POTONG AREA KOSONG) ---
+        img_cropped = img_res.crop((0, 0, w, y))
         
         buf_r = io.BytesIO()
         img_cropped.save(buf_r, format="JPEG", quality=95)
