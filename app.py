@@ -294,7 +294,8 @@ with menu2:
             df_tampil = df_tampil.sort_values(by=["Tanggal", "Urutan_Hari"]).drop(columns=["Urutan_Hari", "Date_Obj"])
             daftar_tanggal = df_tampil[['Tanggal', 'Hari']].drop_duplicates().values
             for tgl, hari in daftar_tanggal:
-                with st.expander(f"📅 Hari **{hari}**, Tanggal **{tgl}**", expanded=True):
+                tgl_format = datetime.strptime(str(tgl), "%Y-%m-%d").strftime("%d-%m-%Y")
+                with st.expander(f"📅 Hari **{hari}**, **{tgl_format}**", expanded=True):
                     df_harian = df_tampil[(df_tampil['Tanggal'] == tgl) & (df_tampil['Hari'] == hari)].copy()
                     
                     df_harian_view = df_harian[['ID Data', 'Nama', 'Pekerjaan', 'Upah', 'Jumlah', 'Total']].copy().reset_index(drop=True)
@@ -356,7 +357,7 @@ with menu2:
 with menu3:
     st.header("Pencatatan Penambahan & Pengurangan")
     today_date_kb = datetime.today().date()
-    if "last_date_kb" not in st.session_state or st.session_state.last_date_kb > today_date: st.session_state.last_date_kb = today_date_kb
+    if "last_date_kb" not in st.session_state or st.session_state.last_date_kb > today_date_kb: st.session_state.last_date_kb = today_date_kb
     if "last_karyawan_kb" not in st.session_state: st.session_state.last_karyawan_kb = daftar_karyawan[0] if daftar_karyawan else ""
 
     if len(daftar_karyawan) > 0:
@@ -432,7 +433,11 @@ with menu3:
                 daftar_tanggal_kb = df_tampil_kb['Tanggal'].drop_duplicates().values
                 
                 for tgl_val in daftar_tanggal_kb:
-                    with st.expander(f"📅 Tanggal Transaksi: **{tgl_val}**", expanded=True):
+                    tgl_obj_kb = datetime.strptime(str(tgl_val), "%Y-%m-%d")
+                    hari_val = HARI_INDO[tgl_obj_kb.strftime("%A")]
+                    tgl_format_kb = tgl_obj_kb.strftime("%d-%m-%Y")
+                    
+                    with st.expander(f"📅 Hari **{hari_val}**, **{tgl_format_kb}**", expanded=True):
                         df_harian_kb = df_tampil_kb[df_tampil_kb['Tanggal'] == tgl_val].copy()
                         df_harian_view_kb = df_harian_kb[['ID Kasbon', 'Nama', 'Tipe', 'Keterangan', 'Nominal']].copy().reset_index(drop=True)
                         df_harian_view_kb['Nominal'] = pd.to_numeric(df_harian_view_kb['Nominal'], errors='coerce').fillna(0)
@@ -656,7 +661,7 @@ with menu4:
                 st.info("Tidak ada data pekerjaan atau kasbon untuk karyawan tersebut pada periode yang dipilih.")
 
 # ==========================================
-# MENU 5: LAPORAN RESUME KAS (MANUAL SAVE)
+# MENU 5: LAPORAN RESUME KAS
 # ==========================================
 with menu5:
     st.header("📊 Laporan Resume Kas")
@@ -709,7 +714,6 @@ with menu5:
     
     btn_simpan_pengeluaran = st.button("💾 Simpan Pengeluaran Lainnya", type="primary", use_container_width=True)
     
-    # HANYA JALAN JIKA TOMBOL DI KLIK, SAMA SEKALI TIDAK ADA AUTO SAVE PADA BAGIAN INI
     if btn_simpan_pengeluaran:
         edited_peng_state = edited_peng_state[edited_peng_state['Keterangan'].astype(str).str.strip() != ""]
         noms_lain = pd.to_numeric(edited_peng_state['Nominal'], errors='coerce').fillna(0)
@@ -880,7 +884,7 @@ with menu5:
         st.download_button("📥 Unduh File JPG", data=byte_resume_img, file_name=f"Resume_Kas_{tgl_mulai_res.strftime('%d%m%Y')}.jpg", mime="image/jpeg")
 
 # ==========================================
-# MENU 6: PENGATURAN
+# MENU 6: PENGATURAN (KHUSUS MANUAL SAVE TANPA INDEX)
 # ==========================================
 with menu6:
     st.header("Pengaturan Master Data")
