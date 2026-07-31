@@ -187,7 +187,7 @@ menu1, menu2, menu3, menu4, menu5, menu6 = st.tabs([
 ])
 
 # ==========================================
-# MENU 1, 2, 3 (TIDAK ADA PERUBAHAN)
+# MENU 1, 2, 3
 # ==========================================
 with menu1:
     st.header("Input Pekerjaan Harian")
@@ -468,11 +468,11 @@ with menu4:
                     byte_slip = buf_s.getvalue()
                     
                     st.subheader(f"📄 Slip Gaji: {nama_slip}")
-                    st.image(byte_slip)
+                    st.image(byte_slip, width=400) # Membatasi ukuran preview web agar rapi
                     st.download_button(f"📥 Unduh Slip - {nama_slip}", data=byte_slip, file_name=f"Slip_{nama_slip}.jpg", mime="image/jpeg", key=f"dl_{nama_slip}")
 
 # ==========================================
-# MENU 5: LAPORAN RESUME KAS (DYNAMIC FIT CONTENT 100%)
+# MENU 5: LAPORAN RESUME KAS
 # ==========================================
 with menu5:
     st.header("📊 Laporan Resume Kas")
@@ -554,10 +554,10 @@ with menu5:
         total_pengeluaran_keseluruhan = total_gaji_semua + total_pengeluaran_lain
         sisa_uang = tarik_uang - total_pengeluaran_keseluruhan
         
-        # --- PRE-CALCULATE TABEL FIT CONTENT (ANTI RUANG KOSONG) ---
-        scale = 2
-        f_title = get_font(28 * scale, "bold")
-        f_sub = get_font(18 * scale, "regular")
+        # --- PRE-CALCULATE TABEL FIT CONTENT DENGAN FONT LOKAL SUPER CEPAT ---
+        scale = 3 # Resolusi super tinggi
+        f_title = get_font(32 * scale, "bold")
+        f_sub = get_font(20 * scale, "regular")
         f_bold = get_font(18 * scale, "bold")
         f_reg = get_font(18 * scale, "regular")
         
@@ -578,7 +578,7 @@ with menu5:
             ("Total Pengeluaran Keseluruhan", total_keluar_fmt)
         ]
         
-        # Hitung Lebar Otomatis berdasarkan text terpanjang
+        # 1. Hitung Lebar Otomatis berdasarkan text terpanjang
         c1_texts = ["NAMA KARYAWAN", "TOTAL GAJI KARYAWAN", "KETERANGAN", "TOTAL PENGELUARAN LAIN", "SISA SALDO KAS", "Tarikan Uang Cash", "Total Pengeluaran Keseluruhan", "1. RINCIAN GAJI KARYAWAN", "2. PENGELUARAN LAINNYA", "3. RINGKASAN SALDO KAS"] + daftar_karyawan + [r[0] for r in lain_rows]
         c2_texts = ["JUMLAH GAJI", "JUMLAH", "NOMINAL", tot_gaji_fmt, tot_lain_fmt, tarik_fmt, total_keluar_fmt, sisa_fmt] + [r[1] for r in gaji_rows] + [r[1] for r in lain_rows]
 
@@ -586,8 +586,8 @@ with menu5:
         max_w_c2 = max([get_text_dim(dummy_draw, t, f_bold)[0] for t in c2_texts] + [get_text_dim(dummy_draw, t, f_reg)[0] for t in c2_texts])
 
         # Padding ketat (ruang dalam tabel lebih ramping & fit)
-        pad_x = 15 * scale
-        pad_y = 10 * scale
+        pad_x = 20 * scale
+        pad_y = 15 * scale
         
         col1_w = int(max_w_c1 + (pad_x * 2))
         col2_w = int(max_w_c2 + (pad_x * 2))
@@ -601,20 +601,20 @@ with menu5:
         tgl_str_res = f"Periode: {tgl_mulai_res.strftime('%d/%m/%Y')} s/d {tgl_selesai_res.strftime('%d/%m/%Y')}"
         pw, th_sub = get_text_dim(dummy_draw, tgl_str_res, f_sub)
 
-        margin = 40 * scale
+        margin = 50 * scale
         # Menentukan lebar kanvas fix (memastikan title juga muat)
         min_canvas_w = max(tw, pw) + (margin * 2)
         actual_canvas_w = max(table_w + (margin * 2), min_canvas_w)
         table_x = (actual_canvas_w - table_w) / 2 # Center table
         
-        # Menghitung Total Tinggi Kanvas
+        # 2. Menghitung Total Tinggi Kanvas Tanpa Sisa Ruang
         tot_h_canvas = margin
         tot_h_canvas += int(th_tit + 15 * scale)
         tot_h_canvas += int(th_sub + 40 * scale)
         
         tot_h_canvas += (len(gaji_rows) + 3) * row_h + int(30 * scale)
         tot_h_canvas += (len(lain_rows) + 3) * row_h + int(30 * scale)
-        tot_h_canvas += (len(ringkasan_rows) + 3) * row_h + int(30 * scale)
+        tot_h_canvas += (len(ringkasan_rows) + 3) * row_h + margin # Margin bawah penutup
         
         # --- MENGGAMBAR KANVAS FINAL ---
         img_res = Image.new('RGB', (int(actual_canvas_w), int(tot_h_canvas)), color=(255, 255, 255))
@@ -630,28 +630,28 @@ with menu5:
         def draw_table_box(title_text, headers, rows_data, start_y, total_row, header_bg):
             curr_y = start_y
             # 1. Header (Sub Judul Tabel)
-            draw.rectangle([table_x, curr_y, table_x + table_w, curr_y + row_h], fill=header_bg, outline=(0, 0, 0), width=2)
+            draw.rectangle([table_x, curr_y, table_x + table_w, curr_y + row_h], fill=header_bg, outline=(0, 0, 0), width=3)
             draw.text((table_x + pad_x, curr_y + pad_y), title_text, fill=(0, 0, 0), font=f_bold)
             curr_y += row_h
             
             # 2. Subheader Kolom
-            draw.rectangle([table_x, curr_y, table_x + table_w, curr_y + row_h], fill=(245, 245, 245), outline=(0, 0, 0), width=2)
-            draw.line([table_x + col1_w, curr_y, table_x + col1_w, curr_y + row_h], fill=(0, 0, 0), width=2)
+            draw.rectangle([table_x, curr_y, table_x + table_w, curr_y + row_h], fill=(245, 245, 245), outline=(0, 0, 0), width=3)
+            draw.line([table_x + col1_w, curr_y, table_x + col1_w, curr_y + row_h], fill=(0, 0, 0), width=3)
             draw.text((table_x + pad_x, curr_y + pad_y), headers[0], fill=(0, 0, 0), font=f_bold)
             draw.text((table_x + col1_w + pad_x, curr_y + pad_y), headers[1], fill=(0, 0, 0), font=f_bold)
             curr_y += row_h
             
             # 3. Baris Data (Fit & Ramping)
             for r in rows_data:
-                draw.rectangle([table_x, curr_y, table_x + table_w, curr_y + row_h], outline=(0, 0, 0), width=2)
-                draw.line([table_x + col1_w, curr_y, table_x + col1_w, curr_y + row_h], fill=(0, 0, 0), width=2)
+                draw.rectangle([table_x, curr_y, table_x + table_w, curr_y + row_h], outline=(0, 0, 0), width=3)
+                draw.line([table_x + col1_w, curr_y, table_x + col1_w, curr_y + row_h], fill=(0, 0, 0), width=3)
                 draw.text((table_x + pad_x, curr_y + pad_y), str(r[0]), fill=(0, 0, 0), font=f_reg)
                 draw.text((table_x + col1_w + pad_x, curr_y + pad_y), str(r[1]), fill=(0, 0, 0), font=f_reg)
                 curr_y += row_h
                 
             # 4. Total Baris Bawah
-            draw.rectangle([table_x, curr_y, table_x + table_w, curr_y + row_h], fill=header_bg, outline=(0, 0, 0), width=2)
-            draw.line([table_x + col1_w, curr_y, table_x + col1_w, curr_y + row_h], fill=(0, 0, 0), width=2)
+            draw.rectangle([table_x, curr_y, table_x + table_w, curr_y + row_h], fill=header_bg, outline=(0, 0, 0), width=3)
+            draw.line([table_x + col1_w, curr_y, table_x + col1_w, curr_y + row_h], fill=(0, 0, 0), width=3)
             draw.text((table_x + pad_x, curr_y + pad_y), str(total_row[0]), fill=(0, 0, 0), font=f_bold)
             draw.text((table_x + col1_w + pad_x, curr_y + pad_y), str(total_row[1]), fill=(0, 0, 0), font=f_bold)
             curr_y += row_h
@@ -661,16 +661,14 @@ with menu5:
         y = draw_table_box("2. PENGELUARAN LAINNYA", ("KETERANGAN", "JUMLAH"), lain_rows, y, ("TOTAL PENGELUARAN LAIN", tot_lain_fmt), (248, 203, 173))
         y = draw_table_box("3. RINGKASAN SALDO KAS", ("KETERANGAN", "NOMINAL"), ringkasan_rows, y, ("SISA SALDO KAS", sisa_fmt), (255, 235, 156))
 
-        # Crop memastikan hasil sangat presisi
-        img_res = img_res.crop((0, 0, int(actual_canvas_w), int(y)))
-
         buf_r = io.BytesIO()
         img_res.save(buf_r, format="JPEG", quality=100)
         byte_resume_img = buf_r.getvalue()
         
         st.markdown("---")
         st.subheader("👁️ Preview Laporan Resume")
-        st.image(byte_resume_img)
+        # Batasi ukuran tampilan preview di web agar tidak usah scroll terlalu jauh
+        st.image(byte_resume_img, width=600) 
         st.download_button("📥 Unduh Laporan Resume (JPG)", data=byte_resume_img, file_name=f"Resume_Kas_{tgl_mulai_res.strftime('%d%m%Y')}.jpg", mime="image/jpeg")
 
 # ==========================================
