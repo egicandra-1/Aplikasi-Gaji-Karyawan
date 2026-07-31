@@ -7,6 +7,8 @@ import io
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import json
+import base64
+import streamlit.components.v1 as components
 
 # --- KAMUS HARI & BULAN BAHASA INDONESIA ---
 HARI_INDO = {
@@ -41,7 +43,7 @@ def get_font(size, style="regular"):
         "mono": [
             "cour.ttf", "consola.ttf", 
             "C:\\Windows\\Fonts\\cour.ttf", "C:\\Windows\\Fonts\\consola.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf", # Utamakan tebal untuk thermal
+            "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf", 
             "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"
         ]
     }
@@ -60,11 +62,10 @@ def get_text_dim(draw, text, font):
         return w, h
 
 # ==========================================
-# SUNTIKAN CSS: MEMBERSIHKAN UI STREAMLIT & MANAGE APP EXTREME
+# SUNTIKAN CSS: MEMBERSIHKAN UI STREAMLIT
 # ==========================================
 st.markdown("""
     <style>
-    /* Sembunyikan semua elemen bawaan Streamlit yang mengganggu saat print */
     h1 a, h2 a, h3 a, h4 a, h5 a, h6 a { display: none !important; }
     #MainMenu {display: none !important;}
     footer {display: none !important;}
@@ -73,7 +74,6 @@ st.markdown("""
     .stApp > header {display: none !important;}
     .stApp > footer {display: none !important;}
     viewerBadge_container__1QSob {display: none !important;}
-    /* Hilangkan tulisan Manage app */
     div[data-testid="stToolbar"] {display: none !important;}
     div[data-testid="stDecoration"] {display: none !important;}
     
@@ -190,7 +190,7 @@ menu1, menu2, menu3, menu4, menu5, menu6 = st.tabs([
 ])
 
 # ==========================================
-# MENU 1, 2, 3 
+# MENU 1, 2, 3
 # ==========================================
 with menu1:
     st.header("Input Pekerjaan Harian")
@@ -369,11 +369,10 @@ with menu3:
                     st.rerun()
 
 # ==========================================
-# MENU 4: CETAK SLIP GAJI (TAJAM, TEBAL, ANTI BLUR UNTUK THERMAL PRINTER)
+# MENU 4: CETAK SLIP GAJI (TAJAM & TOMBOL PRINT LANGSUNG JS)
 # ==========================================
 with menu4:
     st.header("Cetak & Unduh Slip Gaji")
-    st.info("💡 **INFO PENTING:** Untuk hasil print yang bersih dan tidak blur di Printer Kasir (Thermal), **Klik tombol 'Unduh Slip'** lalu print gambar JPG yang ter-download. Jangan print langsung dari browser!")
     
     df_gaji = st.session_state.df_gaji.copy()
     df_kasbon = st.session_state.df_kasbon.copy()
@@ -385,7 +384,7 @@ with menu4:
             
         nama_slip_pilihan = st.selectbox("Pilih Nama Karyawan", ["Semua Karyawan"] + daftar_karyawan, key="slip_nama")
         
-        if st.button("🖨️ Buat Slip Gaji (Persis Contoh Gambar)", type="primary"):
+        if st.button("🖨️ Buat Slip Gaji", type="primary"):
             df_gaji['Tanggal'] = pd.to_datetime(df_gaji['Tanggal']).dt.date
             target_karyawan = daftar_karyawan if nama_slip_pilihan == "Semua Karyawan" else [nama_slip_pilihan]
             
@@ -396,9 +395,7 @@ with menu4:
                 df_filter_kb = df_kasbon[(df_kasbon['Nama'] == nama_slip) & (pd.to_datetime(df_kasbon['Tanggal']).dt.date >= tgl_mulai_slip) & (pd.to_datetime(df_kasbon['Tanggal']).dt.date <= tgl_selesai_slip)] if len(df_kasbon) > 0 else pd.DataFrame()
                 
                 if len(df_filter_gaji) > 0 or len(df_filter_kb) > 0:
-                    # SCALE BESAR (4) AGAR HASILNYA SUPER TAJAM KETIKA DI PRINT THERMAL
-                    scale = 4
-                    # PENGGUNAAN FONT MONO BOLD AGAR TINTA PRINTER THERMAL PEKAT
+                    scale = 4 # Resolusi tinggi agar tinta menempel pekat
                     f_reg = get_font(12 * scale, "mono") 
                     f_bold = get_font(14 * scale, "mono")
                     f_title = get_font(18 * scale, "mono")
@@ -473,11 +470,11 @@ with menu4:
                         draw_slip.text((x_pos, c_y), text, font=font, fill=(0, 0, 0))
                         
                     buf_s = io.BytesIO()
-                    img_slip.save(buf_s, format="JPEG", quality=100) # Quality Maksimal
+                    img_slip.save(buf_s, format="JPEG", quality=100)
                     byte_slip = buf_s.getvalue()
                     generated_slips.append((nama_slip, byte_slip))
             
-            # --- MENAMPILKAN HASIL SECARA BERJAJAR ---
+            # --- MENAMPILKAN HASIL SECARA BERJAJAR & FITUR PRINT LANGSUNG ---
             if generated_slips:
                 st.success(f"✅ Berhasil membuat {len(generated_slips)} Slip Gaji!")
                 cols_per_row = 3
@@ -488,9 +485,26 @@ with menu4:
                             nama_slip_hasil, byte_slip_hasil = generated_slips[i + j]
                             with cols[j]:
                                 st.markdown(f"**📄 Slip: {nama_slip_hasil}**")
-                                st.image(byte_slip_hasil, width=250) # Thumbnail kecil di web
+                                st.image(byte_slip_hasil, width=250) # Tampilan web dikecilkan agar rapi
+                                
+                                # TOMBOL PRINT LANGSUNG (BYPASS BROWSER)
+                                b64_img = base64.b64encode(byte_slip_hasil).decode()
+                                print_btn_html = f"""
+                                <div style="text-align: center; margin-bottom: 5px;">
+                                    <button onclick="printImage()" style="background-color: #2e7d32; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; font-family: sans-serif; font-weight: bold; width: 100%;">🖨️ PRINT LANGSUNG</button>
+                                </div>
+                                <script>
+                                function printImage() {{
+                                    var win = window.open('', '_blank');
+                                    win.document.write('<html><head><title>Print Slip - {nama_slip_hasil}</title></head><body style="margin:0; padding:0; text-align:center;"><img src="data:image/jpeg;base64,{b64_img}" style="width: 100%;" onload="window.print(); window.close();" /></body></html>');
+                                    win.document.close();
+                                }}
+                                </script>
+                                """
+                                components.html(print_btn_html, height=50)
+                                
                                 st.download_button(
-                                    label="📥 Unduh Slip", 
+                                    label="📥 Unduh File JPG", 
                                     data=byte_slip_hasil, 
                                     file_name=f"Slip_{nama_slip_hasil}.jpg", 
                                     mime="image/jpeg", 
@@ -504,7 +518,6 @@ with menu4:
 # ==========================================
 with menu5:
     st.header("📊 Laporan Resume Kas")
-    st.info("💡 **Tip Mencetak:** Klik tombol 'Unduh Laporan Resume' di bawah gambar, lalu cetak (Print) file JPG yang sudah ter-download agar hasilnya tajam dan tidak blur.")
     
     df_gaji = st.session_state.df_gaji.copy()
     df_kasbon = st.session_state.df_kasbon.copy()
@@ -584,7 +597,6 @@ with menu5:
         total_pengeluaran_keseluruhan = total_gaji_semua + total_pengeluaran_lain
         sisa_uang = tarik_uang - total_pengeluaran_keseluruhan
         
-        # Resolusi super tinggi
         scale = 3 
         f_title = get_font(28 * scale, "bold")
         f_sub = get_font(18 * scale, "regular")
@@ -684,14 +696,30 @@ with menu5:
         img_res = img_res.crop((0, 0, int(actual_canvas_w), int(y)))
 
         buf_r = io.BytesIO()
-        img_res.save(buf_r, format="JPEG", quality=100) # Quality Maksimal
+        img_res.save(buf_r, format="JPEG", quality=100)
         byte_resume_img = buf_r.getvalue()
         
         st.markdown("---")
         st.subheader("👁️ Preview Laporan Resume")
-        # Thumbnail kecil di web
-        st.image(byte_resume_img, width=450) 
-        st.download_button("📥 Unduh Laporan Resume (JPG)", data=byte_resume_img, file_name=f"Resume_Kas_{tgl_mulai_res.strftime('%d%m%Y')}.jpg", mime="image/jpeg")
+        st.image(byte_resume_img, width=400) # Thumbnail kecil di web
+        
+        # TOMBOL PRINT LANGSUNG (BYPASS BROWSER)
+        b64_res = base64.b64encode(byte_resume_img).decode()
+        print_res_html = f"""
+        <div style="text-align: left; margin-bottom: 5px;">
+            <button onclick="printRes()" style="background-color: #2e7d32; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; font-family: sans-serif; font-weight: bold;">🖨️ PRINT LAPORAN LANGSUNG</button>
+        </div>
+        <script>
+        function printRes() {{
+            var win = window.open('', '_blank');
+            win.document.write('<html><head><title>Print Laporan Resume</title></head><body style="margin:0; padding:0; text-align:center;"><img src="data:image/jpeg;base64,{b64_res}" style="width: 100%; max-width: 800px;" onload="window.print(); window.close();" /></body></html>');
+            win.document.close();
+        }}
+        </script>
+        """
+        components.html(print_res_html, height=50)
+
+        st.download_button("📥 Unduh File JPG", data=byte_resume_img, file_name=f"Resume_Kas_{tgl_mulai_res.strftime('%d%m%Y')}.jpg", mime="image/jpeg")
 
 # ==========================================
 # MENU 6: PENGATURAN
