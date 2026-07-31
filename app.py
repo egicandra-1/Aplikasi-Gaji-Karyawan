@@ -190,7 +190,7 @@ menu1, menu2, menu3, menu4, menu5, menu6 = st.tabs([
 ])
 
 # ==========================================
-# MENU 1, 2, 3 (TETAP SAMA)
+# MENU 1 & 2
 # ==========================================
 with menu1:
     st.header("Input Pekerjaan Harian")
@@ -319,6 +319,9 @@ with menu2:
         else: st.info(f"Tidak ada riwayat pekerjaan pada rentang tanggal tersebut.")
     else: st.info("Belum ada data pekerjaan yang tersimpan.")
 
+# ==========================================
+# MENU 3: PENAMBAHAN & PENGURANGAN (FORM + DATABASE EDITOR)
+# ==========================================
 with menu3:
     st.header("Pencatatan Penambahan & Pengurangan")
     today_date_kb = datetime.today().date()
@@ -326,6 +329,7 @@ with menu3:
     if "last_karyawan_kb" not in st.session_state: st.session_state.last_karyawan_kb = daftar_karyawan[0] if daftar_karyawan else ""
 
     if len(daftar_karyawan) > 0:
+        # BAGIAN 1: FORM INPUT
         with st.form("form_kasbon", clear_on_submit=True):
             col_kb1, col_kb2, col_kb3 = st.columns(3)
             with col_kb1: tgl_kb = st.date_input("Tanggal Transaksi", st.session_state.last_date_kb, max_value=datetime.today(), format="DD/MM/YYYY")
@@ -368,8 +372,104 @@ with menu3:
                     st.session_state.notif_3_type = "error"
                     st.rerun()
 
+        st.markdown("---")
+        
+        # BAGIAN 2: DATABASE & EDITOR
+        st.subheader("Database Riwayat Penambahan & Pengurangan")
+        st.caption("💡 Edit atau Hapus langsung di tabel lalu tekan **Enter**.")
+        
+        df_kasbon_db = st.session_state.df_kasbon.copy()
+        if len(df_kasbon_db) > 0:
+            df_kasbon_db['Date_Obj'] = pd.to_datetime(df_kasbon_db['Tanggal']).dt.date
+            max_tgl_kb = df_kasbon_db['Date_Obj'].max()
+            default_start_kb = df_kasbon_db['Date_Obj'].min()
+            
+            col_f1_kb, col_f2_kb = st.columns([2, 1])
+            with col_f1_kb:
+                rentang_kb = st.date_input("Pilih Periode Transaksi", value=(default_start_kb, max_tgl_kb), max_value=datetime.today().date(), format="DD/MM/YYYY", key="filter_tgl_kb")
+            with col_f2_kb:
+                filter_nama_kb = st.selectbox("🔍 Filter Karyawan:", ["Semua Karyawan"] + daftar_karyawan, key="filter_nama_kb")
+                
+            if isinstance(rentang_kb, tuple) and len(rentang_kb) == 2: t_start_kb, t_end_kb = rentang_kb
+            else: t_start_kb = t_end_kb = rentang_kb[0] if isinstance(rentang_kb, tuple) else rentang_kb
+                
+            df_tampil_kb = df_kasbon_db[(df_kasbon_db['Date_Obj'] >= t_start_kb) & (df_kasbon_db['Date_Obj'] <= t_end_kb)].copy()
+            if filter_nama_kb != "Semua Karyawan":
+                df_tampil_kb = df_tampil_kb[df_tampil_kb['Nama'] == filter_nama_kb]
+                
+            if len(df_tampil_kb) > 0:
+                df_tampil_kb = df_tampil_kb.sort_values(by=["Tanggal", "Nama"]).drop(columns=["Date_Obj"])
+                daftar_tanggal_kb = df_tampil_kb['Tanggal'].drop_duplicates().values
+                
+                for tgl_val in daftar_tanggal_kb:
+                    with st.expander(f"📅 Tanggal Transaksi: **{tgl_val}**", expanded=True):
+                        df_harian_kb = df_tampil_kb[df_tampil_kb['Tanggal'] == tgl_val].copy()
+                        df_harian_view_kb = df_harian_kb[['ID Kasbon', 'Nama', 'Tipe', 'Keterangan', 'Nominal']].copy().reset_index(drop=True)
+                        df_harian_view_kb['Nominal'] = pd.to_numeric(df_harian_view_kb['Nominal'], errors='coerce').fillna(0)
+                        
+                        notif_key_kb = f"notif_3_{tgl_val}"
+                        notif_area_3_db = st.empty()
+                        if notif_key_kb in st.session_state:
+                            notif_area_3_db.success(st.session_state[notif_key_kb])
+                            del st.session_state[notif_key_kb]
+                            
+                        def save_kb_callback(t=tgl_val, orig_ids=df_harian_kb['ID Kasbon'].tolist()):
+                            edited_df_kb = st.session_state.get(f"editor_kb_{t}")
+                            if edited_df_kb is None or edited_df_kb.empty:
+                                df_proc_kb = pd.DataFrame(columns=['ID Kasbon', 'Tanggal', 'Nama', 'Tipe', 'Keterangan', 'Nominal'])
+                            else:
+                                col_id = edited_df_kb.columns[0]
+                                col_nama = edited_df_kb.columns[1]
+                                col_tipe = edited_df_kb.columns[2]
+                                col_ket = edited_df_kb.columns[3]
+                                col_nom = edited_df_kb.columns[4]
+                                
+                                ids = edited_df_kb[col_id].apply(lambda x: f"KB-{int(time.time())}" if pd.isna(x) or str(x).strip() == "" else str(x))
+                                namas = edited_df_kb[col_nama]
+                                tipes = edited_df_kb[col_tipe]
+                                kets = edited_df_kb[col_ket]
+                                noms = pd.to_numeric(edited_df_kb[col_nom], errors='coerce').fillna(0)
+                                
+                                df_proc_kb = pd.DataFrame({
+                                    'ID Kasbon': ids,
+                                    'Tanggal': t,
+                                    'Nama': namas,
+                                    'Tipe': tipes,
+                                    'Keterangan': kets,
+                                    'Nominal': noms
+                                })
+                                
+                            df_sisa_kb = st.session_state.df_kasbon[~st.session_state.df_kasbon['ID Kasbon'].isin(orig_ids)]
+                            df_final_kb = pd.concat([df_sisa_kb, df_proc_kb]).sort_values(by="Tanggal").reset_index(drop=True)
+                            if 'Date_Obj' in df_final_kb.columns: df_final_kb = df_final_kb.drop(columns=['Date_Obj'])
+                            
+                            st.session_state.df_kasbon = df_final_kb
+                            ws["kasbon"].clear()
+                            ws["kasbon"].update([df_final_kb.columns.values.tolist()] + df_final_kb.fillna("").values.tolist())
+                            st.session_state[f"notif_3_{t}"] = "✅ Database Kasbon Tersimpan Otomatis!"
+                            
+                        st.data_editor(
+                            df_harian_view_kb,
+                            num_rows="dynamic",
+                            use_container_width=True,
+                            column_config={
+                                "ID Kasbon": None,
+                                "Tipe": st.column_config.SelectboxColumn("Tipe Transaksi", options=["Penambahan", "Pengurangan"], required=True),
+                                "Nominal": st.column_config.NumberColumn("Nominal (Rp)", format="Rp %,d", required=True)
+                            },
+                            hide_index=True,
+                            key=f"editor_kb_{tgl_val}",
+                            on_change=save_kb_callback
+                        )
+            else:
+                st.info("Tidak ada riwayat transaksi pada rentang tanggal tersebut.")
+        else:
+            st.info("Belum ada data penambahan atau pengurangan yang tersimpan.")
+    else:
+        st.info("Belum ada data karyawan. Silakan isi di Menu 6.")
+
 # ==========================================
-# MENU 4: CETAK SLIP GAJI (MARGIN KETAT & NO WATERMARK)
+# MENU 4: CETAK SLIP GAJI
 # ==========================================
 with menu4:
     st.header("Cetak & Unduh Slip Gaji")
@@ -395,7 +495,7 @@ with menu4:
                 df_filter_kb = df_kasbon[(df_kasbon['Nama'] == nama_slip) & (pd.to_datetime(df_kasbon['Tanggal']).dt.date >= tgl_mulai_slip) & (pd.to_datetime(df_kasbon['Tanggal']).dt.date <= tgl_selesai_slip)] if len(df_kasbon) > 0 else pd.DataFrame()
                 
                 if len(df_filter_gaji) > 0 or len(df_filter_kb) > 0:
-                    scale = 4 # Resolusi tinggi thermal printer
+                    scale = 4
                     f_reg = get_font(12 * scale, "mono") 
                     f_bold = get_font(14 * scale, "mono")
                     f_title = get_font(18 * scale, "mono")
@@ -444,7 +544,6 @@ with menu4:
                     dummy_draw = ImageDraw.Draw(dummy_img)
                     
                     max_w = 0
-                    # Margin atas dibuat sangat mepet (hanya 10 pixel * scale)
                     current_y = 10 * scale 
                     rendered_lines = []
                     for text, font, align, spacing_top in lines:
@@ -457,10 +556,8 @@ with menu4:
                         rendered_lines.append((tw, current_y, th, text, font, align))
                         current_y += th
                     
-                    # Margin kiri kanan dipangkas mepet (hanya 10 pixel * scale)
                     margin_x = 10 * scale
                     canvas_w = int(max_w + (margin_x * 2))
-                    # Margin bawah dipangkas habis
                     canvas_h = int(current_y + (10 * scale))
                     
                     img_slip = Image.new('RGB', (canvas_w, canvas_h), color=(255, 255, 255))
@@ -489,7 +586,6 @@ with menu4:
                                 st.markdown(f"**📄 Slip: {nama_slip_hasil}**")
                                 st.image(byte_slip_hasil, width=250) 
                                 
-                                # SCRIPT PRINT LANGSUNG TANPA MARGIN BROWSER
                                 b64_img = base64.b64encode(byte_slip_hasil).decode()
                                 print_btn_html = f"""
                                 <div style="text-align: center; margin-bottom: 5px;">
