@@ -79,24 +79,23 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Skrip ini memblokir pop-up 'Clear caches' dari shortcut huruf 'C', tapi tetap membiarkan Anda mengetik huruf C di tabel/input.
+# Skrip agresif untuk memblokir shortcut 'C' di semua lapisan iframe Streamlit Cloud
 components.html(
     """
     <script>
-    const doc = window.parent.document;
-    doc.addEventListener('keydown', function(e) {
-        if ((e.key === 'c' || e.key === 'C') && !e.ctrlKey && !e.metaKey) {
-            const active = doc.activeElement;
-            if (active) {
-                const tag = active.tagName.toUpperCase();
-                if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'CANVAS') {
-                    return; // Biarkan berfungsi normal saat sedang mengetik
-                }
+    function blockC(e) {
+        if (e.key === 'c' || e.key === 'C') {
+            var activeTag = e.target ? e.target.tagName.toUpperCase() : '';
+            if (activeTag !== 'INPUT' && activeTag !== 'TEXTAREA') {
+                e.stopImmediatePropagation();
+                e.stopPropagation();
+                e.preventDefault();
             }
-            e.stopImmediatePropagation();
-            e.preventDefault();
         }
-    }, true);
+    }
+    window.addEventListener('keydown', blockC, true);
+    if (window.parent) { window.parent.addEventListener('keydown', blockC, true); }
+    if (window.top) { window.top.addEventListener('keydown', blockC, true); }
     </script>
     """,
     height=0,
@@ -270,7 +269,7 @@ with menu1:
                     st.rerun()
 
 # ==========================================
-# MENU 2: DATABASE PEKERJAAN (AMAN DARI BUG COLUMN SHIFTING)
+# MENU 2: DATABASE PEKERJAAN
 # ==========================================
 with menu2:
     st.header("Database Riwayat Pekerjaan")
