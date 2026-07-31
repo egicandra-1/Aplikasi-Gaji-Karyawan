@@ -183,7 +183,7 @@ menu1, menu2, menu3, menu4, menu5, menu6 = st.tabs([
 ])
 
 # ==========================================
-# MENU 1: INPUT HARIAN
+# MENU 1, 2, 3
 # ==========================================
 with menu1:
     st.header("Input Pekerjaan Harian")
@@ -250,9 +250,6 @@ with menu1:
                     st.session_state.notif_1_type = "error"
                     st.rerun()
 
-# ==========================================
-# MENU 2: DATABASE PEKERJAAN
-# ==========================================
 with menu2:
     st.header("Database Riwayat Pekerjaan")
     st.caption("💡 Pilih rentang tanggal pada kalender di bawah untuk melihat data periode tertentu. Cukup edit langsung di tabel lalu tekan **Enter**.")
@@ -321,9 +318,6 @@ with menu2:
         else: st.info(f"Tidak ada riwayat pekerjaan pada rentang tanggal tersebut.")
     else: st.info("Belum ada data pekerjaan yang tersimpan.")
 
-# ==========================================
-# MENU 3: PENAMBAHAN & PENGURANGAN
-# ==========================================
 with menu3:
     st.header("Pencatatan Penambahan & Pengurangan")
     today_date_kb = datetime.today().date()
@@ -472,7 +466,7 @@ with menu3:
         st.info("Belum ada data karyawan. Silakan isi di Menu 6.")
 
 # ==========================================
-# MENU 4: CETAK SLIP GAJI
+# MENU 4: CETAK SLIP GAJI (DENGAN CATATAN OPSIONAL & CAPTION TEXT)
 # ==========================================
 with menu4:
     st.header("Cetak & Unduh Slip Gaji")
@@ -528,19 +522,30 @@ with menu4:
                         total_upah += sub
                         
                     tot_tambah, tot_kurang = 0, 0
+                    catatan_list = []
                     if len(df_filter_kb) > 0:
                         lines.append(("", f_bold, "left", 15 * scale))
                         lines.append(("--- CATATAN TAMBAHAN ---", f_bold, "left", 10 * scale))
                         for _, rkb in df_filter_kb.iterrows():
                             nom = float(rkb['Nominal'])
                             sign = "+" if rkb['Tipe'] == "Penambahan" else "-"
-                            lines.append((f"{sign} {rkb['Keterangan']} (Rp{nom:,.0f})".replace(",", "."), f_bold, "left", 10 * scale))
+                            ket_str = f"{sign} {rkb['Keterangan']} (Rp{nom:,.0f})".replace(",", ".")
+                            lines.append((ket_str, f_bold, "left", 10 * scale))
+                            catatan_list.append(ket_str)
                             if rkb['Tipe'] == "Penambahan": tot_tambah += nom
                             else: tot_kurang += nom
                             
                     total_bersih = total_upah + tot_tambah - tot_kurang
                     lines.append(("=================================", f_bold, "left", 15 * scale))
                     lines.append((f"TOTAL GAJI DITERIMA: Rp{total_bersih:,.0f}".replace(",", "."), f_bold, "left", 15 * scale))
+                    
+                    # --- CATATAN OPSIONAL TAMBAHAN DI PALING BAWAH ---
+                    # Jika ada catatan opsional, akan ditambahkan di paling bawah. Jika tidak, tidak muncul apapun.
+                    catatan_opsional = "" # Ubah string ini jika ingin menambahkan catatan manual statis
+                    if catatan_opsional.strip() != "":
+                        lines.append(("---------------------------------", f_bold, "left", 10 * scale))
+                        lines.append((f"Catatan: {catatan_opsional}", f_bold, "left", 10 * scale))
+                        
                     lines.append(("=================================", f_bold, "left", 15 * scale))
                     
                     dummy_img = Image.new('RGB', (10, 10))
@@ -575,7 +580,14 @@ with menu4:
                     buf_s = io.BytesIO()
                     img_slip.save(buf_s, format="JPEG", quality=100)
                     byte_slip = buf_s.getvalue()
-                    generated_slips.append((nama_slip, byte_slip))
+                    
+                    # Mempersiapkan caption text singkat sesuai nama, periode, dan total gaji
+                    total_gaji_fmt_str = f"Rp{total_bersih:,.0f}".replace(",", ".")
+                    caption_text = f"Slip Gaji {nama_slip}\nPeriode: {tgl_mulai_slip.strftime('%d/%m/%Y')} - {tgl_selesai_slip.strftime('%d/%m/%Y')}\nTotal Gaji: {total_gaji_fmt_str}"
+                    if catatan_list:
+                        caption_text += f"\nCatatan: {', '.join(catatan_list)}"
+                        
+                    generated_slips.append((nama_slip, byte_slip, caption_text))
             
             if generated_slips:
                 st.success(f"✅ Berhasil membuat {len(generated_slips)} Slip Gaji!")
@@ -584,10 +596,13 @@ with menu4:
                     cols = st.columns(cols_per_row)
                     for j in range(cols_per_row):
                         if i + j < len(generated_slips):
-                            nama_slip_hasil, byte_slip_hasil = generated_slips[i + j]
+                            nama_slip_hasil, byte_slip_hasil, caption_res = generated_slips[i + j]
                             with cols[j]:
                                 st.markdown(f"**📄 Slip: {nama_slip_hasil}**")
                                 st.image(byte_slip_hasil, width=250) 
+                                
+                                # CAPTION TEXT SIAP SALIN (COPY)
+                                st.text_area("📋 Copy Teks Caption:", value=caption_res, height=85, key=f"cap_{nama_slip_hasil}")
                                 
                                 b64_img = base64.b64encode(byte_slip_hasil).decode()
                                 print_btn_html = f"""
@@ -870,7 +885,7 @@ with menu5:
         st.download_button("📥 Unduh File JPG", data=byte_resume_img, file_name=f"Resume_Kas_{tgl_mulai_res.strftime('%d%m%Y')}.jpg", mime="image/jpeg")
 
 # ==========================================
-# MENU 6: PENGATURAN (SISTEM GANDA + TOMBOL SIMPAN + NOTIFIKASI SLEEP)
+# MENU 6: PENGATURAN
 # ==========================================
 with menu6:
     st.header("Pengaturan Master Data")
