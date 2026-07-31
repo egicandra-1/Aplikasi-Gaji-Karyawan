@@ -61,7 +61,7 @@ def get_text_dim(draw, text, font):
         return w, h
 
 # ==========================================
-# SUNTIKAN CSS: MEMBERSIHKAN UI STREAMLIT
+# SUNTIKAN CSS & JS: MEMBERSIHKAN UI & MATIKAN SHORTCUT CACHE
 # ==========================================
 st.markdown("""
     <style>
@@ -77,12 +77,31 @@ st.markdown("""
     div[data-testid="stDecoration"] {display: none !important;}
     div[data-testid="stVerticalBlock"] div[data-testid="stAlert"] { animation: none !important; }
     </style>
+""", unsafe_allow_html=True)
+
+# Skrip ini memblokir pop-up 'Clear caches' dari shortcut huruf 'C', tapi tetap membiarkan Anda mengetik huruf C di tabel/input.
+components.html(
+    """
     <script>
-    window.addEventListener('keydown', function(e) {
-        if (e.key === 'c' || e.key === 'C') { e.stopImmediatePropagation(); }
+    const doc = window.parent.document;
+    doc.addEventListener('keydown', function(e) {
+        if ((e.key === 'c' || e.key === 'C') && !e.ctrlKey && !e.metaKey) {
+            const active = doc.activeElement;
+            if (active) {
+                const tag = active.tagName.toUpperCase();
+                if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'CANVAS') {
+                    return; // Biarkan berfungsi normal saat sedang mengetik
+                }
+            }
+            e.stopImmediatePropagation();
+            e.preventDefault();
+        }
     }, true);
     </script>
-""", unsafe_allow_html=True)
+    """,
+    height=0,
+    width=0,
+)
 
 st.title("Aplikasi Rekap Gaji Karyawan")
 
@@ -279,7 +298,6 @@ with menu2:
                 with st.expander(f"📅 Hari **{hari}**, Tanggal **{tgl}**", expanded=True):
                     df_harian = df_tampil[(df_tampil['Tanggal'] == tgl) & (df_tampil['Hari'] == hari)].copy()
                     
-                    # PENTING: Jangan buang 'ID Data', sembunyikan saja pakai column_config agar urutan kolom tidak rusak!
                     df_harian_view = df_harian[['ID Data', 'Nama', 'Pekerjaan', 'Upah', 'Jumlah', 'Total']].copy().reset_index(drop=True)
                     df_harian_view['Upah'] = pd.to_numeric(df_harian_view['Upah'], errors='coerce').fillna(0)
                     df_harian_view['Jumlah'] = pd.to_numeric(df_harian_view['Jumlah'], errors='coerce').fillna(0)
@@ -300,19 +318,18 @@ with menu2:
                         hide_index=True, 
                         key=f"editor_{tgl}_{hari}",
                         column_config={
-                            "ID Data": None, # Sembunyikan ID agar layar rapi, tapi datanya tetap utuh
+                            "ID Data": None,
                             "Upah": st.column_config.NumberColumn("Upah", format="Rp %,d"), 
                             "Jumlah": st.column_config.NumberColumn("Jumlah", format="%,d"), 
                             "Total": st.column_config.NumberColumn("Total", format="Rp %,d")
                         }
                     )
 
-                    # LOGIC SAFE AUTO-SAVE
                     view_records = df_harian_view.fillna("").astype(str).to_dict('records')
                     edit_records = edited_df.fillna("").astype(str).to_dict('records')
                     
                     if view_records != edit_records:
-                        edited_df = edited_df[edited_df['Nama'].astype(str).str.strip() != ""] # Buang baris kosong
+                        edited_df = edited_df[edited_df['Nama'].astype(str).str.strip() != ""] 
                         
                         ids = edited_df['ID Data'].apply(lambda x: f"ID-{int(time.time()*1000)}-{pd.util.hash_pandas_object(pd.Series([x])).iloc[0]}" if pd.isna(x) or str(x).strip() == "" else str(x))
                         upahs = pd.to_numeric(edited_df['Upah'], errors='coerce').fillna(0)
@@ -666,6 +683,28 @@ with menu5:
         notif_area_5_db.empty()
         del st.session_state["notif_5_db"]
 
+    def save_pengeluaran_callback():
+        edited_peng = st.session_state.get("editor_pengeluaran")
+        if edited_peng is not None and isinstance(edited_peng, pd.DataFrame):
+            edited_peng = edited_peng[edited_peng['Keterangan'].astype(str).str.strip() != ""]
+            edited_peng['Nominal'] = pd.to_numeric(edited_peng['Nominal'], errors='coerce').fillna(0)
+            
+            if 'ID Lain' in edited_peng.columns:
+                ids = edited_peng['ID Lain'].apply(lambda x: f"LAIN-{int(time.time()*1000)}" if pd.isna(x) or str(x).strip() == "" else str(x))
+            else:
+                ids = [f"LAIN-{int(time.time()*1000)}-{i}" for i in range(len(edited_peng))]
+                
+            df_final_peng = pd.DataFrame({
+                'ID Lain': ids,
+                'Keterangan': edited_peng['Keterangan'],
+                'Nominal': edited_peng['Nominal']
+            })
+            
+            st.session_state.df_pengeluaran = df_final_peng
+            ws["pengeluaran"].clear()
+            ws["pengeluaran"].update([df_final_peng.columns.values.tolist()] + df_final_peng.fillna("").values.tolist())
+            st.session_state["notif_5_db"] = "✅ Pengeluaran Lainnya Berhasil Disimpan Otomatis!"
+
     df_peng_view = st.session_state.df_pengeluaran[['ID Lain', 'Keterangan', 'Nominal']].copy()
     if not df_peng_view.empty:
         df_peng_view['Nominal'] = pd.to_numeric(df_peng_view['Nominal'], errors='coerce').fillna(0)
@@ -682,26 +721,31 @@ with menu5:
             "Keterangan": st.column_config.TextColumn("Keterangan", required=True),
             "Nominal": st.column_config.NumberColumn("Nominal (Rp)", format="Rp %,d", required=True)
         },
-        key="editor_pengeluaran"
+        key="editor_pengeluaran",
+        on_change=save_pengeluaran_callback
     )
     
-    btn_simpan_pengeluaran = st.button("💾 Simpan Pengeluaran Lainnya", type="primary", use_container_width=True)
-    
-    view_records_peng = df_peng_view.fillna("").astype(str).to_dict('records')
-    edit_records_peng = edited_peng_state.fillna("").astype(str).to_dict('records')
-    
-    if btn_simpan_pengeluaran or (view_records_peng != edit_records_peng):
-        edited_peng_state = edited_peng_state[edited_peng_state['Keterangan'].astype(str).str.strip() != ""]
-        noms_lain = pd.to_numeric(edited_peng_state['Nominal'], errors='coerce').fillna(0)
-        
-        ids_lain = edited_peng_state['ID Lain'].apply(lambda x: f"LAIN-{int(time.time()*1000)}-{pd.util.hash_pandas_object(pd.Series([x])).iloc[0]}" if pd.isna(x) or str(x).strip() == "" else str(x))
+    if st.button("💾 Simpan Pengeluaran Lainnya", type="primary", use_container_width=True):
+        if edited_peng_state is not None:
+            edited_peng_state = edited_peng_state[edited_peng_state['Keterangan'].astype(str).str.strip() != ""]
+            edited_peng_state['Nominal'] = pd.to_numeric(edited_peng_state['Nominal'], errors='coerce').fillna(0)
             
-        df_final_peng = pd.DataFrame({'ID Lain': ids_lain, 'Keterangan': edited_peng_state['Keterangan'], 'Nominal': noms_lain})
-        st.session_state.df_pengeluaran = df_final_peng
-        ws["pengeluaran"].clear()
-        ws["pengeluaran"].update([df_final_peng.columns.values.tolist()] + df_final_peng.fillna("").values.tolist())
-        st.session_state["notif_5_db"] = "✅ Pengeluaran Lainnya Berhasil Disimpan!" if btn_simpan_pengeluaran else "✅ Pengeluaran Lainnya Berhasil Disimpan Otomatis!"
-        st.rerun()
+            if 'ID Lain' in edited_peng_state.columns:
+                ids = edited_peng_state['ID Lain'].apply(lambda x: f"LAIN-{int(time.time()*1000)}" if pd.isna(x) or str(x).strip() == "" else str(x))
+            else:
+                ids = [f"LAIN-{int(time.time()*1000)}-{i}" for i in range(len(edited_peng_state))]
+                
+            df_final_peng = pd.DataFrame({
+                'ID Lain': ids,
+                'Keterangan': edited_peng_state['Keterangan'],
+                'Nominal': edited_peng_state['Nominal']
+            })
+            
+            st.session_state.df_pengeluaran = df_final_peng
+            ws["pengeluaran"].clear()
+            ws["pengeluaran"].update([df_final_peng.columns.values.tolist()] + df_final_peng.fillna("").values.tolist())
+            st.session_state["notif_5_db"] = "✅ Pengeluaran Lainnya Berhasil Disimpan Manual!"
+            st.rerun()
 
     st.markdown("---")
     if st.button("🖼️ Generate Gambar Resume", type="primary"):
