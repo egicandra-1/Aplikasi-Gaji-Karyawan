@@ -356,7 +356,7 @@ with menu2:
 with menu3:
     st.header("Pencatatan Penambahan & Pengurangan")
     today_date_kb = datetime.today().date()
-    if "last_date_kb" not in st.session_state or st.session_state.last_date_kb > today_date: st.session_state.last_date_kb = today_date_kb
+    if "last_date_kb" not in st.session_state or st.session_state.last_date_kb > today_date_kb: st.session_state.last_date_kb = today_date_kb
     if "last_karyawan_kb" not in st.session_state: st.session_state.last_karyawan_kb = daftar_karyawan[0] if daftar_karyawan else ""
 
     if len(daftar_karyawan) > 0:
@@ -909,7 +909,7 @@ with menu5:
         st.download_button("📥 Unduh File JPG", data=byte_resume_img, file_name=f"Resume_Kas_{tgl_mulai_res.strftime('%d%m%Y')}.jpg", mime="image/jpeg")
 
 # ==========================================
-# MENU 6: PENGATURAN (NON-AUTO SAVE)
+# MENU 6: PENGATURAN (KHUSUS MANUAL SAVE TANPA INDEX)
 # ==========================================
 with menu6:
     st.header("Pengaturan Master Data")
@@ -926,8 +926,11 @@ with menu6:
             notif_area_6k.empty()
             del st.session_state["notif_6k"]
 
+        # Membersihkan urutan index agar tidak bocor ke layar
+        df_kar_view = st.session_state.df_karyawan.copy().reset_index(drop=True)
+
         edited_kar_state = st.data_editor(
-            st.session_state.df_karyawan, 
+            df_kar_view, 
             num_rows="dynamic", 
             use_container_width=True,
             hide_index=True,
@@ -936,6 +939,7 @@ with menu6:
         
         btn_simpan_kar = st.button("💾 Simpan Karyawan", type="primary", use_container_width=True)
         
+        # HANYA JALAN JIKA TOMBOL DI KLIK, SAMA SEKALI TIDAK ADA AUTO SAVE
         if btn_simpan_kar:
             edited_kar_state = edited_kar_state[edited_kar_state['Nama Karyawan'].astype(str).str.strip() != ""]
             st.session_state.df_karyawan = edited_kar_state
@@ -955,7 +959,8 @@ with menu6:
             notif_area_6p.empty()
             del st.session_state["notif_6p"]
 
-        df_pek_view = st.session_state.df_pekerjaan.copy()
+        # Membersihkan urutan index agar tidak bocor ke layar
+        df_pek_view = st.session_state.df_pekerjaan.copy().reset_index(drop=True)
         if "Harga Per Pcs" in df_pek_view.columns: 
             df_pek_view = df_pek_view.rename(columns={"Harga Per Pcs": "Upah"})
         elif len(df_pek_view.columns) > 1 and df_pek_view.columns[1] != "Upah": 
@@ -973,6 +978,7 @@ with menu6:
         
         btn_simpan_pek = st.button("💾 Simpan Pekerjaan", type="primary", use_container_width=True)
         
+        # HANYA JALAN JIKA TOMBOL DI KLIK, SAMA SEKALI TIDAK ADA AUTO SAVE
         if btn_simpan_pek:
             edited_pek_state = edited_pek_state[edited_pek_state['Jenis Pekerjaan'].astype(str).str.strip() != ""]
             col_upah_target = edited_pek_state.columns[1] if len(edited_pek_state.columns) > 1 else 'Upah'
