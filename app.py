@@ -31,21 +31,17 @@ def get_font(size, style="regular"):
         "regular": [
             "arial.ttf", "calibri.ttf",
             "C:\\Windows\\Fonts\\arial.ttf", "C:\\Windows\\Fonts\\calibri.ttf",
-            "/Library/Fonts/Arial.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
         ],
         "bold": [
             "arialbd.ttf", "calibrib.ttf",
             "C:\\Windows\\Fonts\\arialbd.ttf", "C:\\Windows\\Fonts\\calibrib.ttf",
-            "/Library/Fonts/Arial Bold.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
         ],
         "mono": [
             "cour.ttf", "consola.ttf", 
             "C:\\Windows\\Fonts\\cour.ttf", "C:\\Windows\\Fonts\\consola.ttf",
-            "/Library/Fonts/Courier New.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf", # Utamakan tebal untuk thermal
             "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"
         ]
     }
@@ -64,19 +60,23 @@ def get_text_dim(draw, text, font):
         return w, h
 
 # ==========================================
-# SUNTIKAN CSS: MEMBERSIHKAN UI STREAMLIT & MANAGE APP
+# SUNTIKAN CSS: MEMBERSIHKAN UI STREAMLIT & MANAGE APP EXTREME
 # ==========================================
 st.markdown("""
     <style>
-    /* Menyembunyikan ikon rantai, header, footer, dan tombol Manage App bawaan Streamlit */
+    /* Sembunyikan semua elemen bawaan Streamlit yang mengganggu saat print */
     h1 a, h2 a, h3 a, h4 a, h5 a, h6 a { display: none !important; }
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    .stDeployButton {display:none;}
+    #MainMenu {display: none !important;}
+    footer {display: none !important;}
+    header {display: none !important;}
+    .stDeployButton {display: none !important;}
+    .stApp > header {display: none !important;}
+    .stApp > footer {display: none !important;}
     viewerBadge_container__1QSob {display: none !important;}
+    /* Hilangkan tulisan Manage app */
+    div[data-testid="stToolbar"] {display: none !important;}
+    div[data-testid="stDecoration"] {display: none !important;}
     
-    /* Animasi memudar otomatis untuk notifikasi */
     @keyframes fadeOutAlert {
         0% { opacity: 1; }
         80% { opacity: 1; }
@@ -369,11 +369,11 @@ with menu3:
                     st.rerun()
 
 # ==========================================
-# MENU 4: CETAK SLIP GAJI (PREVIEW KECIL, RAPI, JEJER KE PINGGIR)
+# MENU 4: CETAK SLIP GAJI (TAJAM, TEBAL, ANTI BLUR UNTUK THERMAL PRINTER)
 # ==========================================
 with menu4:
     st.header("Cetak & Unduh Slip Gaji")
-    st.caption("💡 **Tip Mencetak:** Jangan mencetak dari browser! Klik tombol 'Unduh Slip' terlebih dahulu, lalu print gambar JPG yang ter-download agar hasilnya sempurna tanpa watermark.")
+    st.info("💡 **INFO PENTING:** Untuk hasil print yang bersih dan tidak blur di Printer Kasir (Thermal), **Klik tombol 'Unduh Slip'** lalu print gambar JPG yang ter-download. Jangan print langsung dari browser!")
     
     df_gaji = st.session_state.df_gaji.copy()
     df_kasbon = st.session_state.df_kasbon.copy()
@@ -396,50 +396,52 @@ with menu4:
                 df_filter_kb = df_kasbon[(df_kasbon['Nama'] == nama_slip) & (pd.to_datetime(df_kasbon['Tanggal']).dt.date >= tgl_mulai_slip) & (pd.to_datetime(df_kasbon['Tanggal']).dt.date <= tgl_selesai_slip)] if len(df_kasbon) > 0 else pd.DataFrame()
                 
                 if len(df_filter_gaji) > 0 or len(df_filter_kb) > 0:
+                    # SCALE BESAR (4) AGAR HASILNYA SUPER TAJAM KETIKA DI PRINT THERMAL
                     scale = 4
-                    f_reg = get_font(12 * scale, "mono")
+                    # PENGGUNAAN FONT MONO BOLD AGAR TINTA PRINTER THERMAL PEKAT
+                    f_reg = get_font(12 * scale, "mono") 
                     f_bold = get_font(14 * scale, "mono")
                     f_title = get_font(18 * scale, "mono")
                     
                     lines = []
-                    lines.append(("=================================", f_reg, "left", 10 * scale))
+                    lines.append(("=================================", f_bold, "left", 10 * scale))
                     lines.append(("SLIP GAJI", f_title, "center", 15 * scale))
-                    lines.append(("=================================", f_reg, "left", 15 * scale))
-                    lines.append((f"Nama    : {nama_slip}", f_reg, "left", 10 * scale))
-                    lines.append((f"Periode : {tgl_mulai_slip.strftime('%d/%m/%Y')} - {tgl_selesai_slip.strftime('%d/%m/%Y')}", f_reg, "left", 10 * scale))
-                    lines.append(("=================================", f_reg, "left", 10 * scale))
+                    lines.append(("=================================", f_bold, "left", 15 * scale))
+                    lines.append((f"Nama    : {nama_slip}", f_bold, "left", 10 * scale))
+                    lines.append((f"Periode : {tgl_mulai_slip.strftime('%d/%m/%Y')} - {tgl_selesai_slip.strftime('%d/%m/%Y')}", f_bold, "left", 10 * scale))
+                    lines.append(("=================================", f_bold, "left", 10 * scale))
                     
                     total_upah = 0
                     first_day = True
                     for tgl, data_harian in df_filter_gaji.groupby('Tanggal'):
-                        if not first_day: lines.append(("", f_reg, "left", 25 * scale))
+                        if not first_day: lines.append(("", f_bold, "left", 25 * scale))
                         first_day = False
                         hari_indo = HARI_INDO.get(tgl.strftime("%A"), "")
-                        lines.append((f"Hari/Tgl: {hari_indo}, {tgl.strftime('%d/%m/%Y')}", f_reg, "left", 10 * scale))
+                        lines.append((f"Hari/Tgl: {hari_indo}, {tgl.strftime('%d/%m/%Y')}", f_bold, "left", 10 * scale))
                         sub = 0
                         for _, row in data_harian.iterrows():
                             j, u, t = float(row['Jumlah']), float(row['Upah']), float(row['Total'])
-                            lines.append((f"- {row['Pekerjaan']}", f_reg, "left", 10 * scale))
-                            lines.append((f"  {j:,.0f} pcs x Rp{u:,.0f} = Rp{t:,.0f}".replace(",", "."), f_reg, "left", 10 * scale))
+                            lines.append((f"- {row['Pekerjaan']}", f_bold, "left", 10 * scale))
+                            lines.append((f"  {j:,.0f} pcs x Rp{u:,.0f} = Rp{t:,.0f}".replace(",", "."), f_bold, "left", 10 * scale))
                             sub += t
-                        lines.append((f"Sub-total: Rp{sub:,.0f}".replace(",", "."), f_reg, "left", 10 * scale))
+                        lines.append((f"Sub-total: Rp{sub:,.0f}".replace(",", "."), f_bold, "left", 10 * scale))
                         total_upah += sub
                         
                     tot_tambah, tot_kurang = 0, 0
                     if len(df_filter_kb) > 0:
-                        lines.append(("", f_reg, "left", 25 * scale))
-                        lines.append(("--- CATATAN TAMBAHAN ---", f_reg, "left", 10 * scale))
+                        lines.append(("", f_bold, "left", 25 * scale))
+                        lines.append(("--- CATATAN TAMBAHAN ---", f_bold, "left", 10 * scale))
                         for _, rkb in df_filter_kb.iterrows():
                             nom = float(rkb['Nominal'])
                             sign = "+" if rkb['Tipe'] == "Penambahan" else "-"
-                            lines.append((f"{sign} {rkb['Keterangan']} (Rp{nom:,.0f})".replace(",", "."), f_reg, "left", 10 * scale))
+                            lines.append((f"{sign} {rkb['Keterangan']} (Rp{nom:,.0f})".replace(",", "."), f_bold, "left", 10 * scale))
                             if rkb['Tipe'] == "Penambahan": tot_tambah += nom
                             else: tot_kurang += nom
                             
                     total_bersih = total_upah + tot_tambah - tot_kurang
-                    lines.append(("=================================", f_reg, "left", 25 * scale))
+                    lines.append(("=================================", f_bold, "left", 25 * scale))
                     lines.append((f"TOTAL GAJI DITERIMA: Rp{total_bersih:,.0f}".replace(",", "."), f_bold, "left", 15 * scale))
-                    lines.append(("=================================", f_reg, "left", 15 * scale))
+                    lines.append(("=================================", f_bold, "left", 15 * scale))
                     
                     dummy_img = Image.new('RGB', (10, 10))
                     dummy_draw = ImageDraw.Draw(dummy_img)
@@ -471,11 +473,11 @@ with menu4:
                         draw_slip.text((x_pos, c_y), text, font=font, fill=(0, 0, 0))
                         
                     buf_s = io.BytesIO()
-                    img_slip.save(buf_s, format="JPEG", quality=95)
+                    img_slip.save(buf_s, format="JPEG", quality=100) # Quality Maksimal
                     byte_slip = buf_s.getvalue()
                     generated_slips.append((nama_slip, byte_slip))
             
-            # --- MENAMPILKAN HASIL SECARA BERJAJAR (THUMBNAIL KECIL) ---
+            # --- MENAMPILKAN HASIL SECARA BERJAJAR ---
             if generated_slips:
                 st.success(f"✅ Berhasil membuat {len(generated_slips)} Slip Gaji!")
                 cols_per_row = 3
@@ -486,8 +488,7 @@ with menu4:
                             nama_slip_hasil, byte_slip_hasil = generated_slips[i + j]
                             with cols[j]:
                                 st.markdown(f"**📄 Slip: {nama_slip_hasil}**")
-                                # MENGECILKAN TAMPILAN DI WEB AGAR TIDAK TERLALU BESAR (THUMBNAIL)
-                                st.image(byte_slip_hasil, width=250) 
+                                st.image(byte_slip_hasil, width=250) # Thumbnail kecil di web
                                 st.download_button(
                                     label="📥 Unduh Slip", 
                                     data=byte_slip_hasil, 
@@ -499,11 +500,11 @@ with menu4:
                 st.info("Tidak ada data pekerjaan atau kasbon untuk karyawan tersebut pada periode yang dipilih.")
 
 # ==========================================
-# MENU 5: LAPORAN RESUME KAS (PREVIEW KECIL & FIT CONTENT)
+# MENU 5: LAPORAN RESUME KAS
 # ==========================================
 with menu5:
     st.header("📊 Laporan Resume Kas")
-    st.caption("💡 **Tip Mencetak:** Klik tombol 'Unduh Laporan Resume' di bawah gambar, lalu cetak (Print) file JPG yang sudah ter-download agar hasilnya sempurna tanpa watermark.")
+    st.info("💡 **Tip Mencetak:** Klik tombol 'Unduh Laporan Resume' di bawah gambar, lalu cetak (Print) file JPG yang sudah ter-download agar hasilnya tajam dan tidak blur.")
     
     df_gaji = st.session_state.df_gaji.copy()
     df_kasbon = st.session_state.df_kasbon.copy()
@@ -583,7 +584,8 @@ with menu5:
         total_pengeluaran_keseluruhan = total_gaji_semua + total_pengeluaran_lain
         sisa_uang = tarik_uang - total_pengeluaran_keseluruhan
         
-        scale = 2
+        # Resolusi super tinggi
+        scale = 3 
         f_title = get_font(28 * scale, "bold")
         f_sub = get_font(18 * scale, "regular")
         f_bold = get_font(18 * scale, "bold")
@@ -682,13 +684,13 @@ with menu5:
         img_res = img_res.crop((0, 0, int(actual_canvas_w), int(y)))
 
         buf_r = io.BytesIO()
-        img_res.save(buf_r, format="JPEG", quality=100)
+        img_res.save(buf_r, format="JPEG", quality=100) # Quality Maksimal
         byte_resume_img = buf_r.getvalue()
         
         st.markdown("---")
         st.subheader("👁️ Preview Laporan Resume")
-        # MENGECILKAN TAMPILAN DI WEB AGAR TIDAK TERLALU BESAR (THUMBNAIL)
-        st.image(byte_resume_img, width=350) 
+        # Thumbnail kecil di web
+        st.image(byte_resume_img, width=450) 
         st.download_button("📥 Unduh Laporan Resume (JPG)", data=byte_resume_img, file_name=f"Resume_Kas_{tgl_mulai_res.strftime('%d%m%Y')}.jpg", mime="image/jpeg")
 
 # ==========================================
