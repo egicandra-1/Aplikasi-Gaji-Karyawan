@@ -466,7 +466,7 @@ with menu3:
         st.info("Belum ada data karyawan. Silakan isi di Menu 6.")
 
 # ==========================================
-# MENU 4: CETAK SLIP GAJI (DENGAN CATATAN OPSIONAL INPUT MANUAL & CAPTION RINGKAS)
+# MENU 4: CETAK SLIP GAJI (CATATAN OPSIONAL DI BAWAH GARIS AKHIR)
 # ==========================================
 with menu4:
     st.header("Cetak & Unduh Slip Gaji")
@@ -481,19 +481,18 @@ with menu4:
             
         nama_slip_pilihan = st.selectbox("Pilih Nama Karyawan", ["Semua Karyawan"] + daftar_karyawan, key="slip_nama")
         
-        # Kolom Catatan Opsional Khusus (Opsional diisi sebelum generate slip gaji)
+        # Kolom Input Catatan Opsional Khusus per Karyawan
         st.markdown("---")
         st.subheader("✍️ Catatan Opsional per Karyawan (Opsional)")
-        st.caption("💡 Tulis catatan khusus yang ingin dimunculkan di bagian bawah slip gaji masing-masing karyawan (kosongkan jika tidak ada).")
+        st.caption("💡 Tulis catatan khusus yang ingin dicetak di paling bawah slip gaji (akan berada di bawah garis penutup akhir).")
         
         target_kar_list = daftar_karyawan if nama_slip_pilihan == "Semua Karyawan" else [nama_slip_pilihan]
         catatan_opsional_dict = {}
         
-        # Dibuat layout kolom agar rapi
         cols_catatan = st.columns(min(len(target_kar_list), 3))
         for idx, kar_nm in enumerate(target_kar_list):
             with cols_catatan[idx % len(cols_catatan)]:
-                catatan_opsional_dict[kar_nm] = st.text_input(f"Catatan untuk {kar_nm}", key=f"opt_cat_{kar_nm}", placeholder="Contoh: Bonus Hadir")
+                catatan_opsional_dict[kar_nm] = st.text_input(f"Catatan untuk {kar_nm}", key=f"opt_cat_{kar_nm}", placeholder="Contoh: Sisa Pinjaman 500.000")
 
         st.markdown("---")
         if st.button("🖨️ Buat Slip Gaji", type="primary"):
@@ -550,14 +549,14 @@ with menu4:
                     total_bersih = total_upah + tot_tambah - tot_kurang
                     lines.append(("=================================", f_bold, "left", 15 * scale))
                     lines.append((f"TOTAL GAJI DITERIMA: Rp{total_bersih:,.0f}".replace(",", "."), f_bold, "left", 15 * scale))
+                    lines.append(("=================================", f_bold, "left", 15 * scale))
                     
-                    # --- MENAMBAHKAN CATATAN OPSIONAL KE BAGIAN BAWAH SLIP GAJI ---
+                    # --- POSISI CATATAN OPSIONAL DI BAWAH GARIS PALING AKHIR ---
                     catatan_input = catatan_opsional_dict.get(nama_slip, "").strip()
                     if catatan_input != "":
-                        lines.append(("---------------------------------", f_bold, "left", 10 * scale))
-                        lines.append((f"Catatan : {catatan_input}", f_bold, "left", 10 * scale))
-                        
-                    lines.append(("=================================", f_bold, "left", 15 * scale))
+                        lines.append(("---------------------------------", f_bold, "left", 8 * scale))
+                        lines.append((f"Catatan : {catatan_input}", f_bold, "left", 8 * scale))
+                        lines.append(("=================================", f_bold, "left", 10 * scale))
                     
                     dummy_img = Image.new('RGB', (10, 10))
                     dummy_draw = ImageDraw.Draw(dummy_img)
@@ -592,7 +591,7 @@ with menu4:
                     img_slip.save(buf_s, format="JPEG", quality=100)
                     byte_slip = buf_s.getvalue()
                     
-                    # Caption text singkat standar tanpa catatan opsional
+                    # Caption text ringkas standar
                     total_gaji_fmt_str = f"Rp{total_bersih:,.0f}".replace(",", ".")
                     caption_text = f"Slip Gaji {nama_slip}\nPeriode: {tgl_mulai_slip.strftime('%d/%m/%Y')} - {tgl_selesai_slip.strftime('%d/%m/%Y')}\nTotal Gaji: {total_gaji_fmt_str}"
                         
@@ -610,7 +609,6 @@ with menu4:
                                 st.markdown(f"**📄 Slip: {nama_slip_hasil}**")
                                 st.image(byte_slip_hasil, width=250) 
                                 
-                                # CAPTION TEXT RINGKAS
                                 st.text_area("📋 Copy Teks Caption:", value=caption_res, height=75, key=f"cap_{nama_slip_hasil}")
                                 
                                 b64_img = base64.b64encode(byte_slip_hasil).decode()
