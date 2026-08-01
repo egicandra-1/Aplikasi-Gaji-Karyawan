@@ -105,9 +105,9 @@ components.html(
 st.title("Aplikasi Rekap Gaji Karyawan")
 
 # ==========================================
-# 1. KONEKSI GOOGLE SHEETS
+# 1. KONEKSI GOOGLE SHEETS (DENGAN ANTI-NYANGKUT/TTL)
 # ==========================================
-@st.cache_resource
+@st.cache_resource(ttl=600) # Memperbarui koneksi otomatis setiap 10 menit
 def init_connection_v3():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     try:
@@ -117,7 +117,7 @@ def init_connection_v3():
         creds = ServiceAccountCredentials.from_json_keyfile_dict(dict_creds, scope)
     return gspread.authorize(creds)
 
-@st.cache_resource
+@st.cache_resource(ttl=600) # Memperbarui data otomatis dari server setiap 10 menit
 def get_all_worksheets():
     client = init_connection_v3()
     ss = client.open_by_url("https://docs.google.com/spreadsheets/d/1nSVOJTyA48REHwPvaWbvVXUupdh_GcrCHvBqbEA-xe8/edit")
@@ -714,6 +714,7 @@ with menu5:
     
     btn_simpan_pengeluaran = st.button("💾 Simpan Pengeluaran Lainnya", type="primary", use_container_width=True)
     
+    # HANYA JALAN JIKA TOMBOL DI KLIK, SAMA SEKALI TIDAK ADA AUTO SAVE PADA BAGIAN INI
     if btn_simpan_pengeluaran:
         edited_peng_state = edited_peng_state[edited_peng_state['Keterangan'].astype(str).str.strip() != ""]
         noms_lain = pd.to_numeric(edited_peng_state['Nominal'], errors='coerce').fillna(0)
