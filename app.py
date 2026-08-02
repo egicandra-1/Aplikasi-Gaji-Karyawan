@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import time
-from datetime import datetime, date
+from datetime import datetime, timedelta, date
 from PIL import Image, ImageDraw, ImageFont
 import io
 import gspread
@@ -61,25 +61,97 @@ def get_text_dim(draw, text, font):
         return w, h
 
 # ==========================================
-# SUNTIKAN CSS & JS: MEMBERSIHKAN UI & MATIKAN SHORTCUT CACHE
+# SUNTIKAN CSS: MODERN CLEAN UI & ANTI-SHORTCUT CACHE
 # ==========================================
 st.markdown("""
     <style>
+    /* Menyembunyikan elemen bawaan Streamlit yang mengganggu */
     h1 a, h2 a, h3 a, h4 a, h5 a, h6 a { display: none !important; }
     #MainMenu {display: none !important;}
     footer {display: none !important;}
     header {display: none !important;}
     .stDeployButton {display: none !important;}
-    .stApp > header {display: none !important;}
-    .stApp > footer {display: none !important;}
-    viewerBadge_container__1QSob {display: none !important;}
-    div[data-testid="stToolbar"] {display: none !important;}
-    div[data-testid="stDecoration"] {display: none !important;}
-    div[data-testid="stVerticalBlock"] div[data-testid="stAlert"] { animation: none !important; }
+    
+    /* Mengubah Latar Belakang menjadi Bersih dan Modern (Light Theme) */
+    .stApp {
+        background-color: #F8F9FA;
+    }
+    
+    /* Styling Sapaan Teks (Hero Header) */
+    .custom-title {
+        font-size: 2.2rem;
+        font-weight: 700;
+        color: #1E293B;
+        margin-bottom: 5px;
+        font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+    .custom-subtitle {
+        font-size: 1rem;
+        color: #64748B;
+        margin-bottom: 25px;
+        font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    /* Styling Kotak Metrik (Dashboard Cards) */
+    div[data-testid="stMetric"] {
+        background-color: #FFFFFF;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+        border: 1px solid #E2E8F0;
+        transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    }
+    div[data-testid="stMetric"]:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+    }
+    div[data-testid="stMetricValue"] {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #0F172A;
+    }
+    div[data-testid="stMetricLabel"] {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: #475569;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    div[data-testid="stMetricDelta"] {
+        font-size: 0.8rem !important;
+        color: #64748B !important; 
+    }
+
+    /* Styling Tampilan Form dan Tabel */
+    div[data-testid="stForm"] {
+        background-color: #FFFFFF;
+        border-radius: 12px;
+        padding: 20px;
+        border: 1px solid #E2E8F0;
+        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+    }
+    
+    /* Styling Tabs */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 10px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        background-color: #FFFFFF;
+        border-radius: 8px 8px 0 0;
+        padding: 10px 20px;
+        border: 1px solid #E2E8F0;
+        border-bottom: none;
+        box-shadow: 0 -2px 5px rgba(0,0,0,0.02);
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #F8F9FA;
+        border-top: 3px solid #3B82F6 !important;
+        font-weight: 600;
+    }
     </style>
 """, unsafe_allow_html=True)
 
-# Skrip agresif untuk memblokir shortcut 'C' di semua lapisan iframe Streamlit Cloud
+# Skrip agresif untuk memblokir shortcut 'C'
 components.html(
     """
     <script>
@@ -102,12 +174,10 @@ components.html(
     width=0,
 )
 
-st.title("Aplikasi Rekap Gaji Karyawan")
-
 # ==========================================
-# 1. KONEKSI GOOGLE SHEETS (DENGAN ANTI-NYANGKUT/TTL)
+# 1. KONEKSI GOOGLE SHEETS (ANTI-NYANGKUT)
 # ==========================================
-@st.cache_resource(ttl=600) # Memperbarui koneksi otomatis setiap 10 menit
+@st.cache_resource(ttl=600) 
 def init_connection_v3():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     try:
@@ -117,7 +187,7 @@ def init_connection_v3():
         creds = ServiceAccountCredentials.from_json_keyfile_dict(dict_creds, scope)
     return gspread.authorize(creds)
 
-@st.cache_resource(ttl=600) # Memperbarui data otomatis dari server setiap 10 menit
+@st.cache_resource(ttl=600) 
 def get_all_worksheets():
     client = init_connection_v3()
     ss = client.open_by_url("https://docs.google.com/spreadsheets/d/1nSVOJTyA48REHwPvaWbvVXUupdh_GcrCHvBqbEA-xe8/edit")
@@ -191,10 +261,88 @@ df_pek_temp = st.session_state.df_pekerjaan
 col_upah_key = "Upah" if "Upah" in df_pek_temp.columns else (df_pek_temp.columns[1] if len(df_pek_temp.columns) > 1 else "Upah")
 tarif_pekerjaan = dict(zip(df_pek_temp["Jenis Pekerjaan"], pd.to_numeric(df_pek_temp[col_upah_key], errors='coerce').fillna(0))) if not df_pek_temp.empty else {}
 
+
+# ==========================================
+# HEADER & SAPAAN DINAMIS
+# ==========================================
+jam_sekarang = datetime.now().hour
+if 5 <= jam_sekarang < 12:
+    sapaan = "Selamat Pagi 🌅"
+elif 12 <= jam_sekarang < 15:
+    sapaan = "Selamat Siang ☀️"
+elif 15 <= jam_sekarang < 18:
+    sapaan = "Selamat Sore 🌤️"
+else:
+    sapaan = "Selamat Malam 🌙"
+
+st.markdown(f"<div class='custom-title'>{sapaan}, Admin!</div>", unsafe_allow_html=True)
+st.markdown("<div class='custom-subtitle'>Berikut adalah laporan operasional penggajian Anda hari ini.</div>", unsafe_allow_html=True)
+
+# ==========================================
+# PAPAN METRIK (DASHBOARD)
+# ==========================================
+col_filter, _ = st.columns([1, 3])
+with col_filter:
+    filter_waktu = st.selectbox("⏳ Filter Periode Angka:", ["Hari Ini", "1 Minggu Terakhir", "1 Bulan Terakhir", "3 Bulan Terakhir"])
+
+# Logika Filter Tanggal
+today_date = datetime.today().date()
+if filter_waktu == "Hari Ini":
+    start_date = today_date
+elif filter_waktu == "1 Minggu Terakhir":
+    start_date = today_date - timedelta(days=7)
+elif filter_waktu == "1 Bulan Terakhir":
+    start_date = today_date - timedelta(days=30)
+elif filter_waktu == "3 Bulan Terakhir":
+    start_date = today_date - timedelta(days=90)
+
+# Kalkulasi Metrik Karyawan
+total_karyawan_metrik = len(daftar_karyawan)
+
+# Kalkulasi Metrik Gaji
+df_gaji_dash = st.session_state.df_gaji.copy()
+if not df_gaji_dash.empty:
+    df_gaji_dash['Date_Obj'] = pd.to_datetime(df_gaji_dash['Tanggal']).dt.date
+    gaji_filtered = df_gaji_dash[(df_gaji_dash['Date_Obj'] >= start_date) & (df_gaji_dash['Date_Obj'] <= today_date)]
+    total_gaji_dash = pd.to_numeric(gaji_filtered['Total'], errors='coerce').fillna(0).sum()
+else:
+    total_gaji_dash = 0
+
+# Kalkulasi Metrik Kasbon (Pengeluaran & Penambahan)
+df_kb_dash = st.session_state.df_kasbon.copy()
+if not df_kb_dash.empty:
+    df_kb_dash['Date_Obj'] = pd.to_datetime(df_kb_dash['Tanggal']).dt.date
+    kb_filtered = df_kb_dash[(df_kb_dash['Date_Obj'] >= start_date) & (df_kb_dash['Date_Obj'] <= today_date)]
+    
+    kb_tambah = kb_filtered[kb_filtered['Tipe'] == 'Penambahan']
+    total_tambah_dash = pd.to_numeric(kb_tambah['Nominal'], errors='coerce').fillna(0).sum()
+    catatan_tambah = f"📌 {str(kb_tambah.iloc[-1]['Keterangan'])}" if not kb_tambah.empty else "Tidak ada transaksi"
+    
+    kb_kurang = kb_filtered[kb_filtered['Tipe'] == 'Pengurangan']
+    total_kurang_dash = pd.to_numeric(kb_kurang['Nominal'], errors='coerce').fillna(0).sum()
+    catatan_kurang = f"📌 {str(kb_kurang.iloc[-1]['Keterangan'])}" if not kb_kurang.empty else "Tidak ada transaksi"
+else:
+    total_tambah_dash = 0
+    total_kurang_dash = 0
+    catatan_tambah = "Belum ada transaksi"
+    catatan_kurang = "Belum ada transaksi"
+
+# Menampilkan Kartu
+m1, m2, m3, m4 = st.columns(4)
+m1.metric(label="👥 TOTAL KARYAWAN", value=f"{total_karyawan_metrik} Orang", delta="Karyawan Terdaftar", delta_color="off")
+m2.metric(label="💸 PENGELUARAN GAJI", value=f"Rp {total_gaji_dash:,.0f}".replace(",", "."), delta=f"Periode: {filter_waktu}", delta_color="off")
+m3.metric(label="📉 KASBON (PENGURANGAN)", value=f"Rp {total_kurang_dash:,.0f}".replace(",", "."), delta=catatan_kurang, delta_color="off")
+m4.metric(label="📈 KASBON (PENAMBAHAN)", value=f"Rp {total_tambah_dash:,.0f}".replace(",", "."), delta=catatan_tambah, delta_color="off")
+
+st.markdown("<br>", unsafe_allow_html=True) # Spasi
+
+# ==========================================
+# MENU TABS
+# ==========================================
 menu1, menu2, menu3, menu4, menu5, menu6 = st.tabs([
     "📝 1. Input Harian", 
     "📂 2. Database Pekerjaan", 
-    "💸 3. Penambahan & Pengurangan", 
+    "💸 3. Data Transaksi Tambah/Kurang", 
     "🖨️ 4. Cetak Slip Gaji", 
     "📊 5. Laporan Resume Kas", 
     "⚙️ 6. Pengaturan"
@@ -205,7 +353,6 @@ menu1, menu2, menu3, menu4, menu5, menu6 = st.tabs([
 # ==========================================
 with menu1:
     st.header("Input Pekerjaan Harian")
-    today_date = datetime.today().date()
     if "last_date_harian" not in st.session_state or st.session_state.last_date_harian > today_date:
         st.session_state.last_date_harian = today_date
     if "last_karyawan_harian" not in st.session_state:
@@ -276,7 +423,8 @@ with menu2:
     st.caption("💡 Pilih rentang tanggal pada kalender di bawah untuk melihat data periode tertentu. Cukup edit langsung di tabel lalu tekan **Enter**.")
     df_gaji = st.session_state.df_gaji
     if len(df_gaji) > 0:
-        df_gaji['Date_Obj'] = pd.to_datetime(df_gaji['Tanggal']).dt.date
+        if 'Date_Obj' not in df_gaji.columns:
+            df_gaji['Date_Obj'] = pd.to_datetime(df_gaji['Tanggal']).dt.date
         max_tgl = df_gaji['Date_Obj'].max()
         default_start = df_gaji['Date_Obj'].min()
         col_f1, col_f2 = st.columns([2, 1])
@@ -356,8 +504,7 @@ with menu2:
 # ==========================================
 with menu3:
     st.header("Pencatatan Penambahan & Pengurangan")
-    today_date_kb = datetime.today().date()
-    if "last_date_kb" not in st.session_state or st.session_state.last_date_kb > today_date_kb: st.session_state.last_date_kb = today_date_kb
+    if "last_date_kb" not in st.session_state or st.session_state.last_date_kb > today_date: st.session_state.last_date_kb = today_date
     if "last_karyawan_kb" not in st.session_state: st.session_state.last_karyawan_kb = daftar_karyawan[0] if daftar_karyawan else ""
 
     if len(daftar_karyawan) > 0:
@@ -411,7 +558,8 @@ with menu3:
         
         df_kasbon_db = st.session_state.df_kasbon.copy()
         if len(df_kasbon_db) > 0:
-            df_kasbon_db['Date_Obj'] = pd.to_datetime(df_kasbon_db['Tanggal']).dt.date
+            if 'Date_Obj' not in df_kasbon_db.columns:
+                df_kasbon_db['Date_Obj'] = pd.to_datetime(df_kasbon_db['Tanggal']).dt.date
             max_tgl_kb = df_kasbon_db['Date_Obj'].max()
             default_start_kb = df_kasbon_db['Date_Obj'].min()
             
@@ -714,7 +862,6 @@ with menu5:
     
     btn_simpan_pengeluaran = st.button("💾 Simpan Pengeluaran Lainnya", type="primary", use_container_width=True)
     
-    # HANYA JALAN JIKA TOMBOL DI KLIK, SAMA SEKALI TIDAK ADA AUTO SAVE PADA BAGIAN INI
     if btn_simpan_pengeluaran:
         edited_peng_state = edited_peng_state[edited_peng_state['Keterangan'].astype(str).str.strip() != ""]
         noms_lain = pd.to_numeric(edited_peng_state['Nominal'], errors='coerce').fillna(0)
