@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import time
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 from PIL import Image, ImageDraw, ImageFont
 import io
 import gspread
@@ -253,10 +253,13 @@ tarif_pekerjaan = dict(zip(df_pek_temp["Jenis Pekerjaan"], pd.to_numeric(df_pek_
 # ==========================================
 # HEADER & SAPAAN DINAMIS
 # ==========================================
-jam_sekarang = datetime.now().hour
-if 5 <= jam_sekarang < 12:
+# Memaksa jam menyesuaikan waktu lokal Indonesia (UTC+7)
+tz_lokal = timezone(timedelta(hours=7))
+jam_sekarang = datetime.now(tz_lokal).hour
+
+if 5 <= jam_sekarang < 11:
     sapaan = "Selamat Pagi 🌅"
-elif 12 <= jam_sekarang < 15:
+elif 11 <= jam_sekarang < 15:
     sapaan = "Selamat Siang ☀️"
 elif 15 <= jam_sekarang < 18:
     sapaan = "Selamat Sore 🌤️"
@@ -274,7 +277,8 @@ with col_filter:
     filter_waktu = st.selectbox("⏳ Filter Periode Angka:", ["Hari Ini", "1 Minggu Terakhir", "1 Bulan Terakhir", "3 Bulan Terakhir"])
 
 # Logika Filter Tanggal
-today_date = datetime.today().date()
+# Pastikan perhitungan tanggal juga menggunakan zona waktu Indonesia
+today_date = datetime.now(tz_lokal).date()
 if filter_waktu == "Hari Ini":
     start_date = today_date
 elif filter_waktu == "1 Minggu Terakhir":
