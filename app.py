@@ -253,7 +253,6 @@ tarif_pekerjaan = dict(zip(df_pek_temp["Jenis Pekerjaan"], pd.to_numeric(df_pek_
 # ==========================================
 # HEADER & SAPAAN DINAMIS
 # ==========================================
-# Memaksa jam menyesuaikan waktu lokal Indonesia (UTC+7)
 tz_lokal = timezone(timedelta(hours=7))
 jam_sekarang = datetime.now(tz_lokal).hour
 
@@ -272,39 +271,47 @@ st.markdown("<div class='custom-subtitle'>Berikut adalah laporan operasional pen
 # ==========================================
 # PAPAN METRIK (DASHBOARD)
 # ==========================================
+today_date = datetime.now(tz_lokal).date()
+end_date_dash = today_date 
+
 col_filter, _ = st.columns([1, 3])
 with col_filter:
-    filter_waktu = st.selectbox("⏳ Filter Periode Angka:", ["Hari Ini", "1 Minggu Terakhir", "1 Bulan Terakhir", "3 Bulan Terakhir"])
-
-# Logika Filter Tanggal
-# Pastikan perhitungan tanggal juga menggunakan zona waktu Indonesia
-today_date = datetime.now(tz_lokal).date()
-if filter_waktu == "Hari Ini":
-    start_date = today_date
-elif filter_waktu == "1 Minggu Terakhir":
-    start_date = today_date - timedelta(days=7)
-elif filter_waktu == "1 Bulan Terakhir":
-    start_date = today_date - timedelta(days=30)
-elif filter_waktu == "3 Bulan Terakhir":
-    start_date = today_date - timedelta(days=90)
+    filter_waktu = st.selectbox("⏳ Filter Periode Angka:", ["Hari Ini", "1 Minggu Terakhir", "1 Bulan Terakhir", "3 Bulan Terakhir", "Kustom Tanggal"])
+    
+    # Memunculkan Date Input hanya jika opsi Kustom Tanggal dipilih
+    if filter_waktu == "Kustom Tanggal":
+        rentang_kustom = st.date_input("Pilih Rentang Tanggal", value=(today_date - timedelta(days=7), today_date), max_value=today_date, format="DD/MM/YYYY")
+        # Logika pembacaan jika user baru memilih 1 tanggal atau sudah 2 tanggal
+        if isinstance(rentang_kustom, tuple) and len(rentang_kustom) == 2:
+            start_date_dash, end_date_dash = rentang_kustom
+        else:
+            start_date_dash = end_date_dash = rentang_kustom[0] if isinstance(rentang_kustom, tuple) else rentang_kustom
+    elif filter_waktu == "Hari Ini":
+        start_date_dash = today_date
+    elif filter_waktu == "1 Minggu Terakhir":
+        start_date_dash = today_date - timedelta(days=7)
+    elif filter_waktu == "1 Bulan Terakhir":
+        start_date_dash = today_date - timedelta(days=30)
+    elif filter_waktu == "3 Bulan Terakhir":
+        start_date_dash = today_date - timedelta(days=90)
 
 # Kalkulasi Metrik Karyawan
 total_karyawan_metrik = len(daftar_karyawan)
 
-# Kalkulasi Metrik Gaji
+# Kalkulasi Metrik Gaji (Menggunakan start_date_dash dan end_date_dash)
 df_gaji_dash = st.session_state.df_gaji.copy()
 if not df_gaji_dash.empty:
     df_gaji_dash['Date_Obj'] = pd.to_datetime(df_gaji_dash['Tanggal']).dt.date
-    gaji_filtered = df_gaji_dash[(df_gaji_dash['Date_Obj'] >= start_date) & (df_gaji_dash['Date_Obj'] <= today_date)]
+    gaji_filtered = df_gaji_dash[(df_gaji_dash['Date_Obj'] >= start_date_dash) & (df_gaji_dash['Date_Obj'] <= end_date_dash)]
     total_gaji_dash = pd.to_numeric(gaji_filtered['Total'], errors='coerce').fillna(0).sum()
 else:
     total_gaji_dash = 0
 
-# Kalkulasi Metrik Kasbon (Pengeluaran & Penambahan)
+# Kalkulasi Metrik Kasbon (Menggunakan start_date_dash dan end_date_dash)
 df_kb_dash = st.session_state.df_kasbon.copy()
 if not df_kb_dash.empty:
     df_kb_dash['Date_Obj'] = pd.to_datetime(df_kb_dash['Tanggal']).dt.date
-    kb_filtered = df_kb_dash[(df_kb_dash['Date_Obj'] >= start_date) & (df_kb_dash['Date_Obj'] <= today_date)]
+    kb_filtered = df_kb_dash[(df_kb_dash['Date_Obj'] >= start_date_dash) & (df_kb_dash['Date_Obj'] <= end_date_dash)]
     
     kb_tambah = kb_filtered[kb_filtered['Tipe'] == 'Penambahan']
     total_tambah_dash = pd.to_numeric(kb_tambah['Nominal'], errors='coerce').fillna(0).sum()
@@ -319,10 +326,16 @@ else:
     catatan_tambah = "Belum ada transaksi"
     catatan_kurang = "Belum ada transaksi"
 
+# Keterangan periode di bawah angka
+if filter_waktu == "Kustom Tanggal":
+    label_periode = f"Periode: {start_date_dash.strftime('%d/%m/%Y')} - {end_date_dash.strftime('%d/%m/%Y')}"
+else:
+    label_periode = f"Periode: {filter_waktu}"
+
 # Menampilkan Kartu
 m1, m2, m3, m4 = st.columns(4)
 m1.metric(label="👥 TOTAL KARYAWAN", value=f"{total_karyawan_metrik} Orang", delta="Karyawan Terdaftar", delta_color="off")
-m2.metric(label="💸 PENGELUARAN GAJI", value=f"Rp {total_gaji_dash:,.0f}".replace(",", "."), delta=f"Periode: {filter_waktu}", delta_color="off")
+m2.metric(label="💸 PENGELUARAN GAJI", value=f"Rp {total_gaji_dash:,.0f}".replace(",", "."), delta=label_periode, delta_color="off")
 m3.metric(label="📉 KASBON (PENGURANGAN)", value=f"Rp {total_kurang_dash:,.0f}".replace(",", "."), delta=catatan_kurang, delta_color="off")
 m4.metric(label="📈 KASBON (PENAMBAHAN)", value=f"Rp {total_tambah_dash:,.0f}".replace(",", "."), delta=catatan_tambah, delta_color="off")
 
