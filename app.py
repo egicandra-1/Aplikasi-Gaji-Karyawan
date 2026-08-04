@@ -22,7 +22,7 @@ BULAN_INDO = {
 
 URUTAN_HARI = {"Senin": 1, "Selasa": 2, "Rabu": 3, "Kamis": 4, "Jumat": 5, "Sabtu": 6, "Minggu": 7}
 
-st.set_page_config(page_title="Sistem Penggajian", layout="wide", page_icon="📝")
+st.set_page_config(page_title="Sistem Perhitungan Gaji", layout="wide", page_icon="📝")
 
 # ==========================================
 # FUNGSI FONT LOKAL & PENGUKUR TEKS (AUTO-FIT CONTENT)
@@ -172,7 +172,7 @@ if not st.session_state.logged_in:
     st.markdown("<br><br><br>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
-        st.markdown("<div class='custom-title' style='text-align: center;'>🔐 Sistem Penggajian</div>", unsafe_allow_html=True)
+        st.markdown("<div class='custom-title' style='text-align: center;'>🔐 Sistem Perhitungan Gaji</div>", unsafe_allow_html=True)
         st.markdown("<div class='custom-subtitle' style='text-align: center;'>Silakan masuk untuk mengakses data operasional.</div>", unsafe_allow_html=True)
         
         with st.form("form_login"):
@@ -184,7 +184,7 @@ if not st.session_state.logged_in:
                 # ----------------------------------------------------
                 # ANDA BISA MENGUBAH USERNAME DAN PASSWORD DI SINI 👇
                 # ----------------------------------------------------
-                if username == "admin" and password == "admin123":
+                if username == "egi" and password == "1804":
                     st.session_state.logged_in = True
                     st.rerun()
                 else:
