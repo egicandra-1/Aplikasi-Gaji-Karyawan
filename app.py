@@ -163,6 +163,38 @@ components.html(
 )
 
 # ==========================================
+# 0. SISTEM KEAMANAN (LOGIN)
+# ==========================================
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+if not st.session_state.logged_in:
+    st.markdown("<br><br><br>", unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([1, 1.5, 1])
+    with col2:
+        st.markdown("<div class='custom-title' style='text-align: center;'>🔐 Sistem Penggajian</div>", unsafe_allow_html=True)
+        st.markdown("<div class='custom-subtitle' style='text-align: center;'>Silakan masuk untuk mengakses data operasional.</div>", unsafe_allow_html=True)
+        
+        with st.form("form_login"):
+            username = st.text_input("Username", placeholder="Masukkan Username...")
+            password = st.text_input("Password", type="password", placeholder="Masukkan Password...")
+            submit_login = st.form_submit_button("Masuk Aplikasi", type="primary", use_container_width=True)
+            
+            if submit_login:
+                # ----------------------------------------------------
+                # ANDA BISA MENGUBAH USERNAME DAN PASSWORD DI SINI 👇
+                # ----------------------------------------------------
+                if username == "admin" and password == "admin123":
+                    st.session_state.logged_in = True
+                    st.rerun()
+                else:
+                    st.error("⚠️ Akses Ditolak! Username atau Password salah.")
+                    
+    # Perintah sakti untuk menghentikan seluruh kode di bawah ini agar tidak jalan jika belum login
+    st.stop()
+
+
+# ==========================================
 # 1. KONEKSI GOOGLE SHEETS (ANTI-NYANGKUT)
 # ==========================================
 @st.cache_resource(ttl=600) 
@@ -1113,3 +1145,9 @@ with menu6:
             ws["pekerjaan"].update([df_final_pek.columns.values.tolist()] + df_final_pek.fillna("").values.tolist())
             st.session_state["notif_6p"] = "✅ Daftar Pekerjaan & Upah Berhasil Disimpan Manual!"
             st.rerun()
+
+    st.markdown("---")
+    st.subheader("🔒 Keamanan")
+    if st.button("🚪 Keluar Aplikasi (Logout)", type="secondary"):
+        st.session_state.logged_in = False
+        st.rerun()
